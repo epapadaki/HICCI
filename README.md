@@ -113,8 +113,9 @@ local Python environment (`.venv`).
 The case study of the paper uses the melanoma tumour microenvironment dataset
 of Tirosh et al. (2016, GEO GSE72056; 4,139 cells, 7 populations).
 
-1. Download the prepared file `melanoma_tme.h5ad` from Zenodo:
-   **DOI: ZENODO-DOI**
+1. Download the prepared file `melanoma_tme.h5ad` (295 MB) from Zenodo:
+   <https://doi.org/10.5281/zenodo.23976292>
+   (MD5: `4be06f07c5d5098a74007f4f2f9affa4`)
 2. Place it at `data/uploads/melanoma_tme.h5ad`.
 3. Start the platform, select the dataset on the Datasets page and run CellChat
    from the Tools page (about 40 minutes).
