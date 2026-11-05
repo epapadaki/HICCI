@@ -1,0 +1,5 @@
+# Extra packages for the web interface (the scientific packages of the
+# existing platform, e.g. pandas, are already installed).
+fastapi>=0.110
+uvicorn>=0.29
+jinja2>=3.1

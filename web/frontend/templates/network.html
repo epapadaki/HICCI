@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Candidate network · HICCI{% endblock %}
+{% block head %}<script defer src="/static/js/common.js?v={{ v }}"></script><script defer src="/static/js/network.js?v={{ v }}"></script>{% endblock %}
+
+{% block body %}
+<div class="app app-scroll" x-data="networkApp()" x-init="init()" @keydown.escape.window="contextOpen = false">
+  {% include "_topbar.html" %}
+  <div class="page page-wide">
+    <div class="page-head">
+      <h1>Candidate network</h1>
+      <p class="muted small">Candidate interactions between cell populations, as reported by the tools, each with its own criteria. Select an arrow or a cell of the matrix to see the ligand–receptor pairs behind it.</p>
+    </div>
+
+    <div class="card nw-filters">
+      <div class="field" x-show="!data || data.methods.length > 1">
+        <label for="n-src">Source</label>
+        <select id="n-src" class="select" x-model="f.source" @change="load()">
+          <option value="consensus">All tools</option>
+          <template x-for="m in (data ? data.methods : [])" :key="m"><option :value="m" x-text="m"></option></template>
+        </select>
+      </div>
+      <div class="field" x-show="f.source === 'consensus'">
+        <span class="label" id="l-nm">Reported by at least</span>
+        <div class="seg" role="group" aria-labelledby="l-nm">
+          <template x-for="n in toolsRange()" :key="n">
+            <button type="button" :aria-pressed="f.min_methods === n" @click="f.min_methods = n; load()" x-text="n === 1 ? '1 tool' : n + ' tools'"></button>
+          </template>
+        </div>
+      </div>
+      <div class="field" x-show="f.source !== 'consensus'">
+        <label for="n-rank" x-text="'Rank in ' + f.source + ' at least'"></label>
+        <select id="n-rank" class="select" x-model.number="f.min_rank" @change="load()" style="min-width:110px">
+          <template x-for="r in [0, 50, 75, 90, 95, 99]" :key="r"><option :value="r" :selected="f.min_rank === r" x-text="r === 0 ? 'Any' : r"></option></template>
+        </select>
+      </div>
+      <div class="field">
+        <span class="label">Cell populations</span>
+        <button class="btn" type="button" @click="typesOpen = !typesOpen" x-text="(f.types.length || (data ? data.all_cell_types.length : 0)) + ' of ' + (data ? data.all_cell_types.length : 0) + ' shown'"></button>
+      </div>
+      <div class="nw-summary small muted" x-show="data" x-text="data ? fmtInt(data.n_interactions) + ' interactions, ' + fmtInt(data.edges.length) + ' sender–receiver pairs' : ''"></div>
+    </div>
+    <div class="card nw-types" x-show="typesOpen" x-cloak>
+      <div class="chips">
+        <template x-for="t in (data ? data.all_cell_types : [])" :key="t">
+          <button type="button" class="chip-toggle" :aria-pressed="isShown(t)" @click="toggleType(t)" x-text="t"></button>
+        </template>
+      </div>
+      <div class="ds-actions" style="margin-top:8px"><button class="toggle" type="button" @click="f.types = []; load()">Show all</button></div>
+    </div>
+
+    <div class="nw-main">
+      <section class="card">
+        <div class="tabs nw-tabs" role="tablist">
+          <button class="tab" role="tab" type="button" :aria-selected="view === 'network'" @click="view = 'network'; $nextTick(() => draw())">Network</button>
+          <button class="tab" role="tab" type="button" :aria-selected="view === 'matrix'" @click="view = 'matrix'">Matrix</button>
+        </div>
+        <div x-show="!data" style="padding: 20px"><div class="skeleton"></div><div class="skeleton" style="width:60%"></div></div>
+
+        <div x-show="data && view === 'network'">
+          <div class="nw-toolbar small">
+            <label for="n-max">Arrows shown</label>
+            <input id="n-max" type="range" min="10" max="300" step="10" x-model.number="maxEdges" @input="draw()">
+            <span class="num" x-text="Math.min(maxEdges, data ? data.edges.length : 0) + ' strongest of ' + (data ? data.edges.length : 0)"></span>
+            <span class="faint">Hover a population to highlight what it sends (orange) and receives (blue).</span>
+          </div>
+          <svg id="nw-svg" viewBox="0 0 760 720" role="img" aria-label="Network of candidate interactions between cell populations"></svg>
+        </div>
+
+        <div x-show="data && view === 'matrix'" class="nw-matrix-wrap">
+          <table class="nw-matrix" x-show="data">
+            <thead>
+              <tr><th class="corner"><span>Sender ↓ / Receiver →</span></th>
+                <template x-for="r in shownTypes()" :key="'c' + r"><th class="col"><span x-text="r"></span></th></template></tr>
+            </thead>
+            <tbody>
+              <template x-for="s in shownTypes()" :key="'r' + s">
+                <tr><th class="row" x-text="s"></th>
+                  <template x-for="r in shownTypes()" :key="s + '|' + r">
+                    <td :style="cellStyle(s, r)" :class="sel && sel.sender === s && sel.receiver === r ? 'on' : ''"
+                        @click="count(s, r) && openPair(s, r)" :title="s + ' → ' + r + ': ' + count(s, r)" x-text="count(s, r) || ''"></td>
+                  </template>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <p class="small muted" style="padding: 0 16px 14px" x-show="data" x-text="data ? data.note : ''"></p>
+      </section>
+
+      <aside class="card nw-side">
+        <div x-show="!sel" class="small muted">Select an arrow or a matrix cell to list its interactions.</div>
+        <template x-if="sel">
+          <div>
+            <div class="cells-line"><b x-text="sel.sender"></b> to <b x-text="sel.receiver"></b></div>
+            <div class="small muted" style="margin-top:2px" x-text="pairData ? fmtInt(pairData.total) + ' interactions' + (pairData.total > pairData.rows.length ? ', strongest ' + pairData.rows.length + ' shown' : '') : 'Loading…'"></div>
+            <ul class="list" style="margin-top:10px">
+              <template x-for="r in (pairData ? pairData.rows : [])" :key="r.result_id">
+                <li class="nw-row">
+                  <div>
+                    <span class="lr-pair"><span x-text="r.ligand"></span><span class="arrow">→</span><span x-text="r.receptor"></span></span>
+                    <div class="meta">
+                      <span class="num" x-show="r.rank !== null" x-text="'rank in ' + f.source + ' ' + fmtPct(r.rank)"></span>
+                      <span x-text="'reported by ' + r.method_count + '/' + nTools() + ' tools'"></span>
+                      <template x-for="(v, m) in (r.ranks || {})" :key="m"><span class="num" x-show="v !== null" x-text="m + ' ' + fmtPct(v)"></span></template>
+                    </div>
+                  </div>
+                  <a class="row-action" :href="'/interactions?selected=' + r.result_id" title="Open the biological documentation">Open</a>
+                </li>
+              </template>
+            </ul>
+          </div>
+        </template>
+      </aside>
+    </div>
+  </div>
+  {% include "_context_modal.html" %}
+</div>
+{% endblock %}

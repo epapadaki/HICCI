@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}Interactions · HICCI{% endblock %}
+{% block head %}<script defer src="/static/js/mechanism.js?v={{ v }}"></script><script defer src="/static/js/common.js?v={{ v }}"></script><script defer src="/static/js/interactions.js?v={{ v }}"></script>{% endblock %}
+
+{% block body %}
+<div class="app" x-data="cccApp()" x-init="init()" @keydown.escape.window="onEscape()">
+
+  <!-- ============================================================ top bar -->
+  {% include "_topbar.html" %}
+
+  <!-- ============================================================ filters -->
+  <div>
+
+    <form class="filters" @submit.prevent role="search" aria-label="Filter interactions">
+      <div class="field">
+        <label for="f-q">Ligand or receptor</label>
+        <input id="f-q" class="input search" type="search" placeholder="e.g. APP CD74" x-model="filters.q" @input.debounce.250ms="applyFilters()">
+      </div>
+      <div class="field">
+        <label for="f-sender">Sender population</label>
+        <select id="f-sender" class="select" x-model="filters.sender" @change="applyFilters()">
+          <option value="">All senders</option>
+          <template x-for="s in facets.senders" :key="s"><option :value="s" x-text="s"></option></template>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-receiver">Receiver population</label>
+        <select id="f-receiver" class="select" x-model="filters.receiver" @change="applyFilters()">
+          <option value="">All receivers</option>
+          <template x-for="s in facets.receivers" :key="s"><option :value="s" x-text="s"></option></template>
+        </select>
+      </div>
+      <div class="field" x-show="tools.length !== 1">
+        <span class="label" id="l-method">Tool</span>
+        <div class="seg" role="group" aria-labelledby="l-method">
+          <template x-for="m in facets.methods" :key="m">
+            <button type="button" :aria-pressed="filters.methods.includes(m)" @click="toggleMethod(m)" x-text="m"></button>
+          </template>
+        </div>
+      </div>
+      <div class="field" x-show="tools.length !== 1">
+        <span class="label" id="l-support">Reported by at least</span>
+        <div class="seg" role="group" aria-labelledby="l-support">
+          <template x-for="n in toolsRange()" :key="n">
+            <button type="button" :aria-pressed="filters.minMethods === n" @click="filters.minMethods = n; applyFilters()" x-text="n === 1 ? '1 tool' : n + ' tools'"></button>
+          </template>
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-pct">Rank within the tool</label>
+        <select id="f-pct" class="select" x-model.number="filters.minPercentile" @change="applyFilters()" style="min-width: 130px">
+          <option :value="0">Any</option>
+          <option :value="90">Top 10%</option>
+          <option :value="99">Top 1%</option>
+        </select>
+      </div>
+    </form>
+  </div>
+
+  <!-- ============================================================ main -->
+  <main class="main">
+
+    <!-- ---------------- results -->
+    <section class="results" aria-label="Results">
+      <div class="results-head">
+        <div>
+          <strong class="num" x-text="fmtInt(results.total)"></strong>
+          <span x-text="view === 'tools' ? (results.total === 1 ? ' tool prediction' : ' tool predictions') : (results.total === 1 ? ' interaction' : ' interactions')"></span>
+          <span x-show="loading" x-cloak class="faint"> updating…</span>
+          <button type="button" class="link-btn" style="height:auto;margin-left:8px" x-show="hasFilters()" x-cloak @click="resetFilters()">Clear filters</button>
+        </div>
+        <div class="view-switch">
+          <div class="seg" role="group" aria-label="Rows" x-show="tools.length !== 1">
+            <button type="button" :aria-pressed="view === 'interactions'" @click="setView('interactions')">One row per interaction</button>
+            <button type="button" :aria-pressed="view === 'tools'" @click="setView('tools')">One row per tool</button>
+          </div>
+          <label class="reviewer-field" title="Attached to the interactions you remove">Reviewer
+            <input class="input" type="text" x-model="form.expert" placeholder="your name" @change="rememberReviewer()">
+          </label>
+          <a class="small" href="/api/assessments/export.csv">Export assessments (CSV)</a>
+        </div>
+      </div>
+
+      <div class="keep-rule" role="note">
+        <i class="ti ti-checkbox" aria-hidden="true"></i>
+        <label>Kept by default: interactions ranked ≥
+          <input class="input" type="number" min="0" max="100" step="1" :value="keepCutoff" @input="setKeepCutoff($event.target.value)" @change="setKeepCutoff($event.target.value)" aria-label="Rank-in-tool cutoff for pre-selection">
+          in their tool.</label>
+        <span class="faint">Those above the cutoff start checked, the rest unchecked. Tick or untick any row to override. (Ranks are not comparable across tools, so this is a within-tool cutoff.)</span>
+      </div>
+
+      <div class="keep-rule" role="note" style="align-items:center;gap:10px;flex-wrap:wrap" x-show="Object.keys(assessed || {}).length" x-cloak>
+        <i class="ti ti-eraser" aria-hidden="true"></i>
+        <label style="margin:0"><b x-text="Object.keys(assessed || {}).length"></b> stored expert decision(s) override the cutoff. Clear them to let the cutoff pre-select again:</label>
+        <button type="button" class="btn" @click="clearDecisions(null)"><i class="ti ti-trash"></i> Clear all decisions</button>
+        <button type="button" class="btn" @click="clearDecisions('Accept')">Clear accepts</button>
+        <button type="button" class="btn" @click="clearDecisions('Reject')">Clear rejects</button>
+      </div>
+
+      <div class="keep-rule" role="note" style="align-items:center;gap:10px;flex-wrap:wrap">
+        <i class="ti ti-filter" aria-hidden="true"></i>
+        <label style="margin:0">Pathway-level curation — apply one decision to all
+          <strong x-text="fmtInt(results.total)"></strong>
+          interaction(s) matching the current filters (e.g. a whole signalling category):</label>
+        <button type="button" class="btn" :disabled="bulkBusy || !results.total" @click="bulkAssess(false)"><i class="ti ti-x"></i> Reject all shown</button>
+        <button type="button" class="btn" :disabled="bulkBusy || !results.total" @click="bulkAssess(true)"><i class="ti ti-check"></i> Accept all shown</button>
+        <span x-show="bulkBusy" x-cloak class="faint">working…</span>
+      </div>
+
+      <!-- ============ pathway-level curation panel ============ -->
+      <div class="keep-rule" role="note" style="align-items:center;gap:10px">
+        <i class="ti ti-list-tree" aria-hidden="true"></i>
+        <button type="button" class="btn primary" @click="togglePathwayPanel()">
+          <i class="ti" :class="pathwaysOpen ? 'ti-chevron-down' : 'ti-chevron-right'"></i>
+          Curate by signalling pathway
+        </button>
+        <span class="faint">Keep or reject whole CellChat categories at once — the fastest way to curate a large dataset.</span>
+        <span x-show="pathBusy" x-cloak class="faint">working…</span>
+      </div>
+
+      <div class="pathway-panel" x-show="pathwaysOpen" x-cloak
+           style="border:1px solid var(--line,#dfe3ea);border-radius:10px;margin:0 0 14px;padding:10px 12px;background:#fbfcfe">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+          <strong x-text="pathways.length + ' signalling pathways'"></strong>
+          <span class="faint">·</span>
+          <span style="color:#2f8f5b;font-weight:700" x-text="keptPathwayCount() + ' kept'"></span>
+          <span class="faint" x-text="'(' + fmtInt(keptInteractionCount()) + ' interactions)'"></span>
+          <input class="input" type="search" placeholder="filter pathways…" x-model="pathQ" style="margin-left:auto;max-width:200px">
+        </div>
+        <div style="max-height:360px;overflow:auto">
+          <table style="width:100%">
+            <thead><tr>
+              <th style="text-align:left">Signalling pathway</th>
+              <th style="text-align:right">Interactions</th>
+              <th style="text-align:right">Best rank</th>
+              <th style="text-align:center">Status</th>
+              <th style="text-align:center">Decision</th>
+            </tr></thead>
+            <tbody>
+              <template x-for="p in pathList()" :key="p.category">
+                <tr>
+                  <td style="font-weight:600" x-text="p.category"></td>
+                  <td style="text-align:right" x-text="p.count"></td>
+                  <td style="text-align:right" x-text="Math.round(p.best_rank)"></td>
+                  <td style="text-align:center">
+                    <span x-show="pathStatus(p)==='kept'" style="color:#2f8f5b;font-weight:700">● kept</span>
+                    <span x-show="pathStatus(p)==='rejected'" style="color:#d14b4b;font-weight:700">● rejected</span>
+                    <span x-show="pathStatus(p)==='mixed'" style="color:#b8860b;font-weight:700">● mixed</span>
+                    <span x-show="pathStatus(p)==='undecided'" class="faint">— default</span>
+                  </td>
+                  <td style="text-align:center;white-space:nowrap">
+                    <button type="button" class="btn" :disabled="pathBusy" @click="decidePathway(p, true)" title="Keep all in this pathway"><i class="ti ti-check"></i></button>
+                    <button type="button" class="btn" :disabled="pathBusy" @click="decidePathway(p, false)" title="Reject all in this pathway"><i class="ti ti-x"></i></button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table x-show="view === 'interactions'">
+          <thead>
+            <tr>
+              <th><button class="th-btn" type="button" @click="setSort('sender')" :aria-sort="sortState('sender')">Sender → receiver</button></th>
+              <th><button class="th-btn" type="button" @click="setSort('ligand')" :aria-sort="sortState('ligand')">Ligand → receptor</button></th>
+              <th x-show="tools.length !== 1"><button class="th-btn" type="button" @click="setSort('tools')" :aria-sort="sortState('tools')">Reported by</button></th>
+              <template x-for="m in (results.methods || [])" :key="'h' + m">
+                <th class="right col-score"><button class="th-btn" type="button" @click="setSort('rank_' + m.toLowerCase())" :aria-sort="sortState('rank_' + m.toLowerCase())" :title="'Rank within ' + m + '’s own results (100 = highest)'" x-text="m + ' rank'"></button></th>
+              </template>
+              <th><span class="th-plain">Knowledge</span></th>
+              <th class="col-keep"><span class="th-plain" title="Keep (checked) or remove (unchecked) each interaction">Assessment</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="row in (view === 'interactions' ? results.rows : [])" :key="row.event_key">
+              <tr :aria-selected="selectedEvent === row.event_key" :class="isKept(row) ? '' : 'removed'" @click="openEvent(row)" tabindex="0" @keydown.enter="openEvent(row)">
+                <td><div class="cells-from" x-text="row.sender"></div><div class="cells-to" x-text="'to ' + row.receiver"></div></td>
+                <td>
+                  <span class="lr-pair"><span x-text="row.ligand"></span><span class="arrow">→</span><span x-text="row.receptor"></span></span>
+                  <span class="kind" x-show="row.receptor_kind === 'complex' || row.ligand_kind === 'complex'">complex</span>
+                  <span class="kind" x-show="row.ligand_kind === 'proxy'">small molecule</span>
+                  <div class="cells-to" x-show="row.signaling_pathway" x-text="row.signaling_pathway ? 'CellChat category: ' + row.signaling_pathway : ''"></div>
+                </td>
+                <td x-show="tools.length !== 1"><div class="tool-chips">
+                  <template x-for="t in row.tools.filter(x => x.rank !== null)" :key="t.method"><span class="tool-chip" x-text="shortTool(t.method)" :title="t.method + ' reports this interaction'"></span></template>
+                </div></td>
+                <template x-for="m in (results.methods || [])" :key="row.event_key + m">
+                  <td class="right num col-score">
+                    <button type="button" class="rank-link" x-show="toolRank(row, m).rank !== null" @click.stop="openEvent(row, toolRank(row, m).id)"
+                            :title="'Open ' + m + '’s prediction'" x-text="fmtPct(toolRank(row, m).rank)"></button>
+                    <span class="faint" x-show="toolRank(row, m).rank === null" title="Not reported by this tool">–</span>
+                  </td>
+                </template>
+                <td class="kn-cell"><div class="kn-icons" role="group" aria-label="Knowledge about this interaction">
+                  <template x-for="k in DOC_TABS" :key="k.key"><button type="button" class="kn-pill" :title="k.label" @click.stop="openEvent(row, null, k.key)"><i class="ti" :class="k.icon"></i><span x-text="k.short"></span></button></template>
+                </div></td>
+                <td class="col-keep" @click.stop>
+                  <input type="checkbox" class="keep-box" :checked="isKept(row)" @change="toggleKept(row, $event.target.checked)"
+                         :title="isKept(row) ? 'Kept — uncheck to remove this interaction' : 'Removed — check to keep it'">
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+
+        <table x-show="view === 'tools'">
+          <thead>
+            <tr>
+              <th><button class="th-btn" type="button" @click="setSort('sender')" :aria-sort="sortState('sender')">Sender → receiver</button></th>
+              <th><button class="th-btn" type="button" @click="setSort('ligand')" :aria-sort="sortState('ligand')">Ligand → receptor</button></th>
+              <th class="col-method"><span class="th-plain">Tool</span></th>
+              <th class="right col-score">
+                <button class="th-btn" type="button" @click="setSort('score')" :aria-sort="sortState('score')"
+                        :disabled="!results.score_sort_allowed"
+                        :title="results.score_sort_allowed ? 'Sort by raw score' : 'Select one method to sort by raw score'">Raw score</button>
+              </th>
+              <th class="right"><button class="th-btn" type="button" @click="setSort('percentile')" :aria-sort="sortState('percentile')" title="Rank of the raw score within the tool’s own results (100 = highest)">Rank in tool</button></th>
+              <th class="col-support"><button class="th-btn" type="button" @click="setSort('support')" :aria-sort="sortState('support')">Found by</button></th>
+              <th><span class="th-plain">Knowledge</span></th>
+              <th class="col-keep"><span class="th-plain" title="Keep (checked) or remove (unchecked) each interaction">Assessment</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="row in (view === 'tools' ? results.rows : [])" :key="row.id">
+              <tr :aria-selected="selectedId === row.id" :class="isKept(row) ? '' : 'removed'" @click="openDoc(row.id, 'biology')" tabindex="0" @keydown.enter="openDoc(row.id, 'biology')">
+                <td>
+                  <div class="cells-from" x-text="row.sender"></div>
+                  <div class="cells-to" x-text="'to ' + row.receiver"></div>
+                </td>
+                <td>
+                  <span class="lr-pair"><span x-text="row.ligand"></span><span class="arrow">→</span><span x-text="row.receptor"></span></span>
+                  <span class="kind" x-show="row.receptor_kind === 'complex' || row.ligand_kind === 'complex'">complex</span>
+                  <span class="kind" x-show="row.ligand_kind === 'proxy'" title="Small molecule estimated from the expression of the enzyme that produces it">small molecule</span>
+                  <div class="cells-to" x-show="row.signaling_pathway" x-text="row.signaling_pathway ? 'CellChat category: ' + row.signaling_pathway : ''"></div>
+                </td>
+                <td class="col-method" x-text="row.method"></td>
+                <td class="right num col-score" x-text="fmtScore(row.score)"></td>
+                <td class="right num" x-text="fmtPct(row.global_percentile)"></td>
+                <td class="col-support support-cell">
+                  <span class="support" :title="'Found by: ' + row.supporting_methods" :aria-label="'Found by ' + row.method_count + ' of 3 methods'">
+                    <template x-for="i in 3" :key="i"><i :class="i <= row.method_count ? 'on' : ''"></i></template>
+                  </span>
+                  <span class="small muted num" x-text="row.method_count + '/' + nTools()"></span>
+                </td>
+                <td>
+<div class="kn-icons" role="group" aria-label="Knowledge about this interaction">
+                    <template x-for="k in DOC_TABS" :key="k.key"><button type="button" class="kn-pill" :class="k.decision ? 'decision' : ''" :title="k.label" @click.stop="openDoc(row.id, k.key)"><i class="ti" :class="k.icon"></i><span x-text="k.short"></span></button></template>
+                  </div>
+                </td>
+                <td class="col-keep" @click.stop>
+                  <input type="checkbox" class="keep-box" :checked="isKept(row)" @change="toggleKept(row, $event.target.checked)"
+                         :title="isKept(row) ? 'Kept — uncheck to remove this interaction' : 'Removed — check to keep it'">
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <div class="empty" x-show="!loading && results.total === 0 && index.state === 'ready'" x-cloak>
+          No results match these filters. <button class="link-btn" @click="resetFilters()">Clear filters</button>
+        </div>
+      </div>
+
+      <nav class="pager" aria-label="Results" aria-live="polite">
+        <span class="muted num" x-show="results.total" x-text="'Showing ' + fmtInt(results.rows.length) + ' of ' + fmtInt(results.total)"></span>
+        <span class="muted" x-show="loadingMore" x-cloak><span class="spinner" aria-hidden="true"></span> Loading more…</span>
+        <span class="muted" x-show="results.total && results.rows.length >= results.total" x-cloak>All loaded.</span>
+      </nav>
+    </section>
+
+    <!-- ---------------- documentation panel -->
+    {% include "_doc_panel.html" %}
+  </main>
+
+  {% include "_context_modal.html" %}
+</div>
+{% endblock %}

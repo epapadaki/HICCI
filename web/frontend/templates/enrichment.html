@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Functional enrichment · HICCI{% endblock %}
+{% block head %}<script defer src="/static/js/common.js?v={{ v }}"></script><script defer src="/static/js/enrichment.js?v={{ v }}"></script>{% endblock %}
+
+{% block body %}
+<div class="app app-scroll" x-data="cccEnrich()" x-init="init()">
+  {% include "_topbar.html" %}
+  <div class="page">
+    <div class="page-head">
+      <h1>Functional enrichment</h1>
+      <p class="muted small">Over-representation of the <b>curated</b> genes against the background of <b>all candidate ligand–receptor genes</b> (not the whole genome), so terms common to ligands/receptors in general are controlled for and each bar reflects what the curated subset is <i>specifically</i> enriched for. Across 14 libraries — GO (BP/CC/MF), pathways (KEGG, Reactome, WikiPathways, BioPlanet, MSigDB Hallmark), disease (DisGeNET, Disease perturbations) and drug (DSigDB, Drug perturbations). Runs locally and offline.</p>
+    </div>
+
+    <div class="card nw-filters">
+      <div class="field"><label for="f-cutoff">Kept: rank in tool ≥</label>
+        <input id="f-cutoff" class="input" type="number" min="0" max="100" step="1" style="width:72px" :value="cutoff" @change="setCutoff($event.target.value)"></div>
+      <button type="button" class="btn" @click="toggleShift()" :aria-pressed="showShift"
+        x-text="showShift ? 'Hide compositional shift' : 'Show compositional shift (default → curated)'"></button>
+      <div class="nw-summary small muted" x-show="enrich" x-text="enrich ? enrich.after_n + ' curated genes tested against ' + enrich.before_n + ' candidate L–R genes' : ''"></div>
+    </div>
+
+    <div x-show="!enrich || feLoading" class="card" style="padding:16px">
+      <div class="small muted" x-show="feLoading" style="margin-bottom:8px">Computing enrichment…</div>
+      <div class="skeleton"></div><div class="skeleton" style="width:60%"></div>
+    </div>
+
+    <template x-if="enrich && enrich.reached === false && !feLoading">
+      <div class="card" style="padding:16px"><p class="small" style="margin:0" x-text="enrich.note"></p></div>
+    </template>
+
+    <template x-if="enrich && enrich.reached !== false && !feLoading">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <template x-for="(src, i) in enrich.sources" :key="src.source">
+          <section class="card" x-show="src.after && src.after.length">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px">
+              <h3 class="impact-net-h" style="margin:0" x-text="src.label"></h3>
+              <button type="button" class="btn" style="white-space:nowrap;flex:none" @click="exportSVG('fe-' + i, 'enrichment_' + src.source.replace(':',''))"><i class="ti ti-download"></i> SVG + PNG</button>
+            </div>
+            <svg :id="'fe-' + i" role="img" :aria-label="'Functional enrichment for ' + src.label" style="width:100%;height:auto"></svg>
+          </section>
+        </template>
+        <p class="small muted" x-show="emptyNote()" x-text="emptyNote()"></p>
+        <p class="small muted" x-text="enrich.note"></p>
+
+        <!-- descriptive compositional shift (before vs after, genome background) -->
+        <template x-if="showShift && enrich.descriptive">
+          <div style="display:flex;flex-direction:column;gap:16px;margin-top:8px">
+            <div class="card" style="padding:14px;border-left:4px solid #b6bcc6">
+              <h2 style="margin:0 0 4px">Compositional shift <span class="small muted" style="font-weight:500">· descriptive</span></h2>
+              <p class="small muted" style="margin:0">How the enrichment profile changes from the full candidate set (default) to the curated set, each against a genome-wide background. This is <b>descriptive</b> — it shows the shift in composition, not a formal test (a list of ligands/receptors is intrinsically enriched for signalling terms). The panels above are the inferential result.</p>
+            </div>
+            <template x-for="(src, i) in enrich.sources" :key="'s'+src.source">
+              <section class="card" x-show="(src.before_genome && src.before_genome.length) || (src.after_genome && src.after_genome.length)">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px">
+                  <h3 class="impact-net-h" style="margin:0" x-text="src.label"></h3>
+                  <button type="button" class="btn" style="white-space:nowrap;flex:none" @click="exportSVG('fs-' + i, 'shift_' + src.source.replace(':',''))"><i class="ti ti-download"></i> SVG + PNG</button>
+                </div>
+                <svg :id="'fs-' + i" role="img" :aria-label="'Compositional shift for ' + src.label" style="width:100%;height:auto"></svg>
+              </section>
+            </template>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+</div>
+{% endblock %}

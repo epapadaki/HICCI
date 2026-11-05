@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}HICCI{% endblock %}
+{% block head %}<script defer src="/static/js/common.js?v={{ v }}"></script>{% endblock %}
+
+{% block body %}
+<div class="app app-scroll" x-data="docPanel()" x-init="initPanel()">
+  {% include "_topbar.html" %}
+  <div class="page home-page">
+
+    <!-- Welcome -->
+    <section class="home-hero">
+      <img class="home-mark" src="/static/img/hicci-logo.png?v={{ v }}" alt="HICCI logo">
+      <div class="home-hero-text">
+        <h1>Welcome to HICCI</h1>
+        <p class="home-tagline">Human-In-the-loop Curation of Cellular Interactions</p>
+        <p class="muted">Infer cell–cell communication — ligand–receptor interactions — from single-cell RNA-seq, then refine the predictions with expert human-in-the-loop curation. The biologically credible interactions are kept and the noise removed, with the evidence for every call in view.</p>
+        <div class="home-cta">
+          <a class="btn primary" href="/datasets">Get started</a>
+          <a class="btn" href="/help">How it works</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Overview -->
+    <section class="home-overview">
+      <h2>Overview</h2>
+      <p class="muted small">Computational tools predict many ligand–receptor interactions, and they often disagree and include spurious calls. This platform pairs that inference with a transparent curation step and tools to interpret what remains. A typical analysis has four steps:</p>
+      <ol class="home-steps">
+        <li><b>Add a dataset.</b> Upload an <span class="mono">.h5ad</span> file or load the example, confirm the cell-type (and optional sample/group) columns, and prepare it.</li>
+        <li><b>Run a tool.</b> Choose one of CellPhoneDB, NATMI, CellChat, SingleCellSignalR or ICELLNET — or run several and compare them.</li>
+        <li><b>Curate.</b> Review each predicted interaction with its computed, pair-level and receptor-level evidence, and keep or reject it. The kept set becomes the curated network.</li>
+        <li><b>Interpret.</b> Explore the curated network, its functional enrichment across many libraries, and a literature-grounded draft Discussion of the findings.</li>
+      </ol>
+    </section>
+
+    <!-- Explore the tabs -->
+    <h2 class="home-sec-title">Explore</h2>
+    <div class="home-grid">
+      <a class="home-tile" href="/datasets"><h3>Datasets</h3><p>Upload or load data and prepare it for analysis.</p></a>
+      <a class="home-tile" href="/run"><h3>Tools</h3><p>Run a cell–cell communication method on the active dataset.</p></a>
+      <a class="home-tile" href="/interactions"><h3>Interactions</h3><p>Every predicted ligand–receptor interaction with its evidence — curate here.</p></a>
+      <a class="home-tile" href="/aggregated"><h3>Curated results</h3><p>The curated network: profiles, biological processes, hubs, rewiring and a dot plot.</p></a>
+      <a class="home-tile" href="/enrichment"><h3>Functional enrichment</h3><p>Over-representation of the curated genes across GO, pathways, disease and drug libraries.</p></a>
+      <a class="home-tile" href="/discussion"><h3>Discussion</h3><p>A draft, PubMed-grounded Discussion of the curated results and their enrichment.</p></a>
+      <a class="home-tile" href="/methods"><h3>Compare tools</h3><p>How the different tools overlap on this dataset.</p></a>
+      <a class="home-tile" href="/help"><h3>Help</h3><p>Glossary, data sources and how to cite.</p></a>
+    </div>
+  </div>
+</div>
+<style>
+  .home-page { max-width: 1040px; }
+  /* Hero: logo centred on top, welcome text centred below */
+  .home-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 34px 28px 30px; }
+  .home-mark { flex: none; width: 190px; height: auto; margin-bottom: 10px; }
+  .home-hero-text h1 { margin: 2px 0 2px; }
+  .home-tagline { margin: 0 0 14px; color: var(--accent); font-weight: 600; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .home-hero-text p.muted { margin: 0 auto 18px; max-width: 70ch; line-height: 1.6; }
+  .home-cta { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .home-cta a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+  .home-cta a.btn:not(.primary) { background: #ea580c; border-color: #ea580c; color: #fff; }
+  .home-cta a.btn:not(.primary):hover { background: #c2410c; border-color: #c2410c; }
+  /* Overview and Explore share one centred content width so they line up */
+  .home-overview, .home-grid { max-width: 840px; margin-left: auto; margin-right: auto; }
+  .home-overview { margin-top: 16px; text-align: center; }
+  .home-overview h2 { margin: 0 0 6px; }
+  .home-overview > p.muted { max-width: 100%; margin: 0 auto; }
+  .home-steps { text-align: left; margin: 14px 0 0; padding-left: 22px; display: flex; flex-direction: column; gap: 9px; line-height: 1.55; }
+  .home-steps li { padding-left: 4px; }
+  /* Explore: centred title + centred card grid, same width as Overview */
+  .home-sec-title { margin: 24px 0 14px; text-align: center; }
+  .home-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .home-tile { padding: 16px 18px; text-decoration: none; color: inherit; cursor: pointer; border: 1px solid transparent; border-radius: 10px; background: transparent; transition: transform .12s, box-shadow .12s, border-color .12s, background .12s; }
+  @media (max-width: 520px) { .home-grid { grid-template-columns: 1fr; } }
+  .home-tile:hover { transform: translateY(-2px); border-color: var(--accent); background: var(--bg-shell); box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+  .home-tile h3 { margin: 0 0 5px; font-size: 15px; }
+  .home-tile p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+</style>
+{% endblock %}

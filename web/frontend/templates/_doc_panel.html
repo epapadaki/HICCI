@@ -1,0 +1,548 @@
+    <div class="doc-backdrop" x-show="docOpen" x-cloak @click="closeDoc()"></div>
+    <aside class="panel doc-modal" x-show="docOpen" x-cloak role="dialog" aria-modal="true" aria-label="Knowledge about this interaction" id="doc-panel">
+      <template x-if="selectedId !== null">
+        <div class="doc-grid">
+          <!-- header -->
+          <div class="panel-head">
+            <button class="doc-close" type="button" @click="closeDoc()" title="Close (Esc)" aria-label="Close"><i class="ti ti-x"></i></button>
+            <template x-if="!doc.overview"><div><div class="skeleton" style="width:60%"></div><div class="skeleton" style="width:40%;height:20px"></div></div></template>
+            <template x-if="doc.overview">
+              <div>
+                <div class="cells-line"><b x-text="doc.overview.sender"></b> to <b x-text="doc.overview.receiver"></b></div>
+                <h2 class="pair-title">
+                  <span x-text="doc.overview.ligand.label"></span><span class="arrow">→</span><span x-text="doc.overview.receptor.label"></span>
+                </h2>
+                <div class="entity-notes">
+                  <template x-for="side in ['ligand', 'receptor']" :key="side">
+                    <div x-show="entityNote(doc.overview[side])" x-text="entityNote(doc.overview[side], side)"></div>
+                  </template>
+                </div>
+                <div class="legend" aria-label="Evidence layers">
+                  <span><i style="background: var(--layer-data)"></i>Computed from your data</span>
+                  <span><i style="background: var(--layer-pair)"></i>About this pair</span>
+                  <span><i style="background: var(--layer-general)"></i>About the receptor in general</span>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- computational result -->
+          <div class="stack doc-computed" style="padding-bottom: 12px" x-show="doc.overview">
+            <template x-if="doc.overview">
+              <section class="layer data compact">
+                <div class="layer-tag">Computed from your data</div>
+                <div class="stats">
+                  <div><span class="stat-label">Tool</span><span class="stat-value" x-text="doc.overview.method"></span></div>
+                  <div :title="doc.overview.score_info.label"><span class="stat-label">Raw score</span><span class="stat-value num" x-text="fmtScore(doc.overview.score)"></span></div>
+                  <div><span class="stat-label">Rank in tool<span class="help-tip" tabindex="0" data-tip="Where the raw score falls within this tool’s own results (100 = highest). Not comparable between tools.">?</span></span><span class="stat-value num" x-text="fmtPct(doc.overview.global_percentile)"></span></div>
+                </div>
+                <div class="also small">
+                  <span class="muted" x-show="!doc.overview.other_methods.length">Not reported by the other tools.</span>
+                  <span class="muted" x-show="doc.overview.other_methods.length">Also reported by</span>
+                  <template x-for="o in doc.overview.other_methods" :key="o.id">
+                    <button class="chip-btn" type="button" @click="select(o.id)" :title="(o.score_info.label || 'Score') + ' ' + fmtScore(o.score)">
+                      <span x-text="o.method"></span> <span class="num muted" x-text="'rank ' + fmtPct(o.global_percentile)"></span>
+                    </button>
+                  </template>
+                  <template x-if="doc.overview.signaling">
+                    <span class="also-cat"><span class="muted">CellChat category</span> <span class="chip" x-text="doc.overview.signaling.pathway + (doc.overview.signaling.annotation ? ', ' + doc.overview.signaling.annotation : '')"></span></span>
+                  </template>
+                </div>
+                <p class="caution" style="margin-top:10px">A candidate from expression data, not proof of binding or signalling.</p>
+                <details class="more">
+                  <summary>What these numbers mean</summary>
+                  <p style="margin-top:4px"><b x-text="doc.overview.score_info.label + ':'"></b>
+                    <span x-show="doc.overview.score_info.known" x-text="doc.overview.score_info.definition"></span>
+                    <span x-show="!doc.overview.score_info.known">The definition of this score is not available from the current results. It is shown as reported and is not converted to a probability or confidence.</span></p>
+                  <p class="faint" x-show="doc.overview.score_info.run_parameters.length" x-text="'Run settings: ' + doc.overview.score_info.run_parameters.join(', ')"></p>
+                  <p style="margin-top:4px"><b>Rank in tool:</b> <span x-text="doc.overview.percentile_definition"></span></p>
+                  <p style="margin-top:4px" x-show="doc.overview.signaling"><b>CellChat category:</b> <span x-text="doc.overview.signaling ? doc.overview.signaling.note : ''"></span></p>
+                  <p style="margin-top:4px"><b>Why a candidate:</b> <span x-text="doc.overview.computational_note"></span></p>
+                </details>
+              </section>
+            </template>
+          </div>
+
+          <!-- tabs -->
+          <div class="tabs" role="tablist" x-show="doc.overview">
+            <button class="tab" role="tab" type="button" :aria-selected="tab === 'biology'" @click="setTab('biology')"><i class="ti" :class="(DOC_TABS.find(k => k.key === 'biology') || {}).icon"></i> Prior knowledge</button>
+            <button class="tab" role="tab" type="button" :aria-selected="tab === 'literature'" @click="setTab('literature')"><i class="ti" :class="(DOC_TABS.find(k => k.key === 'literature') || {}).icon"></i> 
+              Literature support<span class="count num" x-show="doc.literature && doc.literature.publications" x-text="doc.literature ? doc.literature.publications.length : ''"></span>
+            </button>
+            <button class="tab" role="tab" type="button" :aria-selected="tab === 'relevance'" @click="setTab('relevance')"><i class="ti" :class="(DOC_TABS.find(k => k.key === 'relevance') || {}).icon"></i> Case study relevance</button>
+            <button class="tab" role="tab" type="button" :aria-selected="tab === 'data'" @click="setTab('data')"><i class="ti" :class="(DOC_TABS.find(k => k.key === 'data') || {}).icon"></i> Case study</button>
+            <button class="tab" role="tab" type="button" :aria-selected="tab === 'response'" @click="setTab('response')"><i class="ti" :class="(DOC_TABS.find(k => k.key === 'response') || {}).icon"></i> Signalling response</button>
+          </div>
+
+          <!-- ======== A. Biology and pathways -->
+          <div class="stack" x-show="tab === 'biology' && doc.overview" role="tabpanel">
+            <template x-if="doc.biologyError"><div class="notice error" x-text="doc.biologyError"></div></template>
+            <template x-if="!doc.biology && !doc.biologyError">
+              <div><div class="skeleton"></div><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:65%"></div></div>
+            </template>
+
+            <div class="subtabs" role="tablist" aria-label="Biology sections" x-show="doc.biology || doc.mech">
+              <button class="subtab" role="tab" type="button" :aria-selected="bioSub === 'mechanism'" @click="bioSub = 'mechanism'"><i class="ti ti-arrows-transfer-down"></i> How it acts</button>
+              <button class="subtab" role="tab" type="button" :aria-selected="bioSub === 'molecules'" @click="bioSub = 'molecules'"><i class="ti ti-atom-2"></i> The molecules</button>
+              <button class="subtab" role="tab" type="button" :aria-selected="bioSub === 'downstream'" @click="bioSub = 'downstream'"><i class="ti ti-sitemap"></i> Downstream of the receptor</button>
+            </div>
+
+            <template x-if="doc.mech && bioSub === 'mechanism'">
+              <section class="layer general mech">
+                <div class="mech-head">
+                  <div>
+                    <div class="layer-tag">Known mechanism</div>
+                    <div class="small"><b x-text="doc.mech.type_label"></b>
+                      <span class="muted" x-show="doc.mech.pathway" x-text="', ' + doc.mech.pathway + ' pathway'"></span></div>
+                    <div class="small faint" x-show="doc.mech.type_source" x-text="'Source: ' + doc.mech.type_source"></div>
+                  </div>
+                  <div class="mech-actions">
+                    <label class="switch small"><input type="checkbox" x-model="mechSignal"> Signalling</label>
+                    <button class="toggle" type="button" @click="mechBig = true">Enlarge</button>
+                  </div>
+                </div>
+                <div class="seg mech-view" role="group" aria-label="Picture">
+                  <button type="button" :aria-pressed="mechView === 'schematic'" @click="mechView = 'schematic'">Platform schematic</button>
+                  <button type="button" :aria-pressed="mechView === 'reactome'" @click="mechView = 'reactome'"
+                          x-text="'Reactome diagram' + (doc.mech.reactome && doc.mech.reactome.items ? ' (' + doc.mech.reactome.items.length + ')' : '')"></button>
+                </div>
+                <div x-show="mechView === 'schematic'">
+                  <div class="mech-fig" x-html="mechanismSvg(doc.mech, mechSignal)"></div>
+                  <p class="small muted" x-show="mechSignal" x-text="doc.mech.signalling_note"></p>
+                </div>
+                <div x-show="mechView === 'reactome'">
+                  <p class="small muted" style="margin-top:10px" x-show="doc.mech.reactome && doc.mech.reactome.message" x-text="doc.mech.reactome ? doc.mech.reactome.message : ''"></p>
+                  <template x-if="doc.mech.reactome && doc.mech.reactome.items && doc.mech.reactome.items.length">
+                    <div>
+                      <select class="select wide" style="margin-top:10px" x-model.number="mechRx" x-show="doc.mech.reactome.items.length > 1">
+                        <template x-for="(it, i) in doc.mech.reactome.items" :key="it.id"><option :value="i" x-text="it.name"></option></template>
+                      </select>
+                      <div class="small" style="margin-top:8px"><b x-text="doc.mech.reactome.items[mechRx].name"></b>
+                        <a :href="doc.mech.reactome.items[mechRx].url" target="_blank" rel="noopener" x-text="doc.mech.reactome.items[mechRx].id" style="margin-left:6px"></a></div>
+                      <div class="small faint" x-text="'Includes ' + doc.mech.ligand.label + ' and ' + doc.mech.reactome.items[mechRx].covers.join(', ') + (doc.mech.reactome.items[mechRx].missing.length ? '; not ' + doc.mech.reactome.items[mechRx].missing.join(', ') : '')"></div>
+                      <div class="mech-fig rx-fig">
+                        <img :src="doc.mech.reactome.items[mechRx].svg" :alt="'Reactome diagram of ' + doc.mech.reactome.items[mechRx].name"
+                             x-show="!rxFailed" @error="if ($el.src.endsWith('.svg')) { $el.src = doc.mech.reactome.items[mechRx].png } else { rxFailed = true }">
+                        <p class="small muted" x-show="rxFailed" style="padding:14px">The diagram could not be loaded from reactome.org (internet needed). Open it with the link above.</p>
+                      </div>
+                      <p class="small muted" x-text="doc.mech.reactome.note"></p>
+                    </div>
+                  </template>
+                </div>
+                <div class="mech-data small" x-show="doc.mech.your_data">
+                  <span class="layer-tag" style="color: var(--layer-data)">In your data</span>
+                  <span x-show="doc.mech.your_data && doc.mech.your_data.ligand_detected !== null" x-text="doc.mech.your_data ? doc.mech.ligand.label + ' detected in ' + pct(doc.mech.your_data.ligand_detected) + ' of ' + doc.mech.sender + ' cells' : ''"></span>
+                  <span x-show="doc.mech.your_data && doc.mech.your_data.receptor_detected !== null" x-text="doc.mech.your_data ? doc.mech.receptor.label + (doc.mech.receptor.subunits.length > 1 ? ' (all subunits together)' : '') + ' in ' + pct(doc.mech.your_data.receptor_detected) + ' of ' + doc.mech.receiver + ' cells' : ''"></span>
+                </div>
+                <p class="caution" x-text="doc.mech.caution"></p>
+                <p class="small faint" x-show="doc.mech.evidence" x-text="'Database evidence for the pair: ' + doc.mech.evidence"></p>
+              </section>
+            </template>
+            <template x-if="doc.biology">
+              <div>
+                <!-- molecules -->
+                <section class="layer general" x-show="bioSub === 'molecules'">
+                  <div class="layer-tag">Curated function of each molecule (UniProt)</div>
+                  <template x-for="side in ['ligand', 'receptor']" :key="side">
+                    <div class="molecule">
+                      <div>
+                        <span class="molecule-name" x-text="doc.biology[side].label"></span>
+                        <span class="chip" x-text="side === 'ligand' ? 'Ligand' : 'Receptor'"></span>
+                      </div>
+                      <template x-if="!doc.biology[side].subunits.length">
+                        <p class="small muted" x-text="doc.biology[side].summary"></p>
+                      </template>
+                      <template x-if="doc.biology[side].subunits.length > 1">
+                        <p class="small muted" x-text="'Complex of ' + doc.biology[side].required_subunits.join(' and ') + '. Each subunit is described separately; this does not show that the complex forms in your cells.'"></p>
+                      </template>
+                      <template x-for="(su, i) in doc.biology[side].subunits" :key="su.gene + i">
+                        <div style="margin-top: 6px" x-data="{ open: false }">
+                          <div><span class="item-title" x-text="su.gene"></span> <span class="molecule-protein" x-text="su.protein_name"></span></div>
+                          <p class="small" :class="open ? 'clamp open' : 'clamp'" x-text="su.function || 'No function annotation in UniProt.'"></p>
+                          <button class="toggle" type="button" x-show="(su.function || '').length > 280" @click="open = !open" x-text="open ? 'Show less' : 'Show more'"></button>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </section>
+
+
+                <!-- receptor general -->
+                <section class="layer general" x-show="bioSub === 'downstream'">
+                  <div class="layer-tag">About the receptor in general</div>
+                  <h3>Receptor signalling</h3>
+                  <p class="small muted" x-text="doc.biology.receptor_pathways.note"></p>
+                  <p class="small muted" x-show="doc.biology.receptor_pathways.unresolved_note" x-text="doc.biology.receptor_pathways.unresolved_note"></p>
+
+                  <template x-for="entry in doc.biology.receptor_pathways.signor" :key="'s' + entry.gene">
+                    <div>
+                      <div class="subhead" x-text="'Direct downstream effects of ' + entry.gene + ' (SIGNOR)'"></div>
+                      <p class="small muted" x-show="entry.error" x-text="entry.error"></p>
+                      <p class="small muted" x-show="!entry.error && !entry.direct.length">No curated downstream relations in SIGNOR.</p>
+                      <ul class="list">
+                        <template x-for="(rel, i) in entry.direct.slice(0, showAll['signor' + entry.gene] ? 999 : 6)" :key="rel.signor_id + i">
+                          <li>
+                            <div>
+                              <span class="item-title" x-text="entry.gene + ' → ' + rel.target"></span>
+                              <span class="chip" :class="rel.direction === 'activation' ? 'up' : (rel.direction === 'inhibition' ? 'down' : '')" x-text="rel.effect"></span>
+                            </div>
+                            <div class="meta">
+                              <span x-show="rel.mechanism" x-text="'Mechanism: ' + rel.mechanism"></span>
+                              <span x-show="rel.cell_context" x-text="'Cell context: ' + rel.cell_context"></span>
+                              <a x-show="rel.pubmed_url" :href="rel.pubmed_url" target="_blank" rel="noopener" x-text="'PMID ' + rel.pmid"></a>
+                              <span class="faint" x-text="rel.signor_id"></span>
+                            </div>
+                            <details class="more" x-show="rel.sentence"><summary>Evidence sentence</summary><p x-text="rel.sentence"></p></details>
+                          </li>
+                        </template>
+                      </ul>
+                      <button class="toggle" type="button" x-show="entry.direct.length > 6" @click="showAll['signor' + entry.gene] = !showAll['signor' + entry.gene]" x-text="showAll['signor' + entry.gene] ? 'Show fewer' : 'Show all ' + entry.direct.length"></button>
+                      <p class="small faint" x-show="entry.indirect_count" x-text="entry.indirect_count + ' further relations two steps downstream are not listed; they are indirect.'"></p>
+                    </div>
+                  </template>
+
+                  <template x-for="entry in doc.biology.receptor_pathways.reactome" :key="'r' + entry.gene">
+                    <div>
+                      <div class="subhead" x-text="'Pathways that include ' + entry.gene + ' (Reactome)'"></div>
+                      <p class="small muted" x-show="entry.error" x-text="entry.error"></p>
+                      <p class="small muted" x-show="!entry.error && !entry.pathways.length">No Reactome pathway annotations.</p>
+                      <ul class="list">
+                        <template x-for="(pw, i) in entry.pathways.slice(0, showAll['react' + entry.gene] ? 999 : 5)" :key="pw.id + '-' + i">
+                          <li x-data="{ open: false }">
+                            <div class="item-title"><a :href="pw.url" target="_blank" rel="noopener" x-text="pw.name"></a></div>
+                            <p class="small" :class="open ? 'clamp open' : 'clamp'" x-text="stripHtml(pw.description)"></p>
+                            <button class="toggle" type="button" x-show="(pw.description || '').length > 280" @click="open = !open" x-text="open ? 'Show less' : 'Show more'"></button>
+                            <div class="meta"><span x-text="pw.link_to_receptor"></span><span class="faint" x-text="pw.id"></span></div>
+                          </li>
+                        </template>
+                      </ul>
+                      <button class="toggle" type="button" x-show="entry.pathways.length > 5" @click="showAll['react' + entry.gene] = !showAll['react' + entry.gene]" x-text="showAll['react' + entry.gene] ? 'Show fewer' : 'Show all ' + entry.pathways.length"></button>
+                    </div>
+                  </template>
+                </section>
+              </div>
+            </template>
+          </div>
+
+          <!-- ======== B. Literature -->
+          <div class="stack" x-show="tab === 'literature' && doc.overview" role="tabpanel">
+            <template x-if="!doc.literature && !doc.literatureError">
+              <div><div class="skeleton"></div><div class="skeleton" style="width:85%"></div><div class="skeleton" style="width:60%"></div><p class="small faint">Searching PubMed. The first search for a pair can take a few seconds; after that it is cached.</p></div>
+            </template>
+            <template x-if="doc.literatureError"><div class="notice error" x-text="doc.literatureError"></div></template>
+            <template x-if="doc.literature && doc.literature.status !== 'ok'"><div class="notice" x-text="doc.literature.message"></div></template>
+            <template x-if="doc.literature && doc.literature.status === 'ok'">
+              <div>
+                <p class="small muted" x-show="!doc.literature.publications.length">PubMed returned no publications that mention both partners.</p>
+                <!-- who assigned the evidence types -->
+                <p class="small muted" style="margin:0 0 8px" x-show="doc.literature.classified_by && doc.literature.publications.length">
+                  <span class="chip" x-show="doc.literature.classified_by && doc.literature.classified_by.ai"><i class="ti ti-sparkles"></i> AI-assisted classification</span>
+                  <span x-text="doc.literature.classified_by && doc.literature.classified_by.ai ? ('Evidence types assigned by ' + (doc.literature.classified_by.model || 'Gemini') + ' from title and abstract; verify against the publication.') : 'Evidence types assigned by local keyword rules.'"></span>
+                </p>
+                <!-- diagnostics: what was searched -->
+                <div class="lit-diag small muted" x-show="doc.literature.query">
+                  <span x-show="doc.literature.query_mode === 'relaxed'" class="chip">Broadened search</span>
+                  <details class="more"><summary>What was searched on PubMed</summary>
+                    <p class="mono" style="word-break:break-all" x-text="doc.literature.query"></p>
+                    <p class="faint" x-show="doc.literature.query_mode === 'relaxed'">No abstract mentioned every complex subunit together, so the search was broadened to require the ligand and at least one receptor subunit.</p>
+                    <p><a :href="'https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(doc.literature.query)" target="_blank" rel="noopener">Open this search on PubMed</a></p>
+                  </details>
+                </div>
+                <!-- pair-specific -->
+                <section class="layer pair">
+                  <div class="layer-tag">About this pair</div>
+                  <h3>Processes and pathways reported with this pair</h3>
+                  <template x-if="!doc.literature && !doc.literatureError">
+                    <div><div class="skeleton"></div><div class="skeleton" style="width:70%"></div><p class="small faint">Searching the literature…</p></div>
+                  </template>
+                  <template x-if="doc.literatureError || (doc.literature && doc.literature.status !== 'ok')">
+                    <p class="small muted" x-text="doc.literatureError || doc.literature.message"></p>
+                  </template>
+                  <template x-if="doc.literature && doc.literature.status === 'ok'">
+                    <div>
+                      <p class="small muted" x-show="!doc.literature.pair_pathways.length">No pathway or process terms were found in the abstracts that discuss this specific pair.</p>
+                      <ul class="list" x-show="doc.literature.pair_pathways.length">
+                        <template x-for="g in groupPathways(doc.literature.pair_pathways).slice(0, showAll.pairPathways ? 999 : 5)" :key="g.name">
+                          <li>
+                            <div><span class="item-title" x-text="g.name"></span>
+                              <template x-for="d in g.directions" :key="d"><span class="chip" style="margin-left:4px" x-text="d"></span></template></div>
+                            <div class="meta"><span x-text="(g.items.length === 1 ? 'Mentioned in 1 study: ' : 'Mentioned in ' + g.items.length + ' studies: ') + g.items.map(i => 'PMID ' + i.pmid).join(', ')"></span></div>
+                            <details class="more"><summary>Context in the abstracts</summary>
+                              <template x-for="i in g.items" :key="i.pmid"><div style="margin-bottom:8px"><p x-text="i.sentence"></p><p class="faint" x-text="'PMID ' + i.pmid + '. Study context: ' + (i.context || 'not stated')"></p></div></template>
+                            </details>
+                          </li>
+                        </template>
+                      </ul>
+                      <button class="toggle" type="button" x-show="groupPathways(doc.literature.pair_pathways).length > 5" @click="showAll.pairPathways = !showAll.pairPathways" x-text="showAll.pairPathways ? 'Show fewer' : 'Show all ' + groupPathways(doc.literature.pair_pathways).length"></button>
+                      <p class="note">Found by keyword in abstracts that discuss this pair. A mention is an association reported in that study, not evidence that the pathway is activated by this pair or active in your data.</p>
+                    </div>
+                  </template>
+                  <details class="more" style="margin-top:10px" x-show="doc.biology.pair.text">
+                    <summary>Interpretation from the annotations of each molecule</summary>
+                    <p x-text="doc.biology.pair.text"></p>
+                    <p class="faint" x-text="doc.biology.pair.note"></p>
+                  </details>
+                </section>
+
+                <template x-for="(pub, i) in doc.literature.publications.slice(0, showAll.pubs ? 999 : 3)" :key="pub.pmid + '-' + i">
+                  <article class="layer pub" :class="pub.pair_specific ? 'pair' : 'general'">
+                    <div class="layer-tag" x-text="pub.pair_specific ? 'Studies this pair' : (pub.co_mention_only ? 'Mentions both molecules only' : 'Pair-specific evidence unclear')"></div>
+                    <div class="pub-title"><a :href="pub.url" target="_blank" rel="noopener" x-text="pub.title"></a></div>
+                    <div class="meta">
+                      <span x-text="[pub.journal, pub.year].filter(Boolean).join(', ')"></span>
+                      <a x-show="pub.pmid" :href="pub.url" target="_blank" rel="noopener" x-text="'PMID ' + pub.pmid"></a>
+                      <a x-show="pub.doi" :href="pub.doi_url" target="_blank" rel="noopener" x-text="'DOI ' + pub.doi"></a>
+                    </div>
+                    <div class="chips">
+                      <span class="chip" :class="pub.pair_specific ? 'pair' : ''" x-text="pub.evidence.primary"></span>
+                      <span class="chip" x-show="pub.evidence.study_mode" x-text="pub.evidence.study_mode"></span>
+                      <span class="chip" x-show="pub.evidence.direct_binding === 'supported_in_abstract'">Binding reported</span>
+                      <span class="chip info">Abstract only</span>
+                    </div>
+                    <p class="quote" x-show="pub.what_studied" x-text="pub.what_studied"></p>
+                    <dl class="kv">
+                      <dt>Organism</dt><dd x-text="pub.organisms.join(', ') || 'Not stated'"></dd>
+                      <dt>Tissue</dt><dd x-text="pub.tissue.join(', ') || 'Not stated'"></dd>
+                      <dt>Cell types</dt><dd x-text="pub.cell_types.join(', ') || 'Not stated'"></dd>
+                      <dt>Study system</dt><dd x-text="pub.study_system.join(', ') || 'Not stated'"></dd>
+                      <dt>Evidence</dt><dd x-text="pub.evidence.types.join(', ') || 'Not classified'"></dd>
+                    </dl>
+                  </article>
+                </template>
+                <button class="btn" type="button" style="margin-top: 12px" x-show="doc.literature.publications.length > 3" @click="showAll.pubs = !showAll.pubs"
+                        x-text="showAll.pubs ? 'Show the first 3' : 'Show all ' + doc.literature.publications.length + ' publications'"></button>
+                <ul class="small muted" style="margin: 14px 0 0; padding-left: 18px">
+                  <template x-for="n in doc.literature.notes" :key="n"><li x-text="n"></li></template>
+                </ul>
+                <div class="meta" style="margin-top: 8px">
+                  <span x-text="doc.literature.cached ? 'Loaded from the local cache' : 'Fetched from PubMed'"></span>
+                  <button class="toggle" type="button" @click="loadLiterature(true)">Search PubMed again</button>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- ======== C. Relevance -->
+          <div class="stack" x-show="tab === 'relevance' && doc.overview" role="tabpanel">
+            <template x-if="!doc.literature && !doc.literatureError">
+              <div><div class="skeleton"></div><div class="skeleton" style="width:70%"></div></div>
+            </template>
+            <template x-if="doc.literature && doc.literature.status !== 'ok'"><div class="notice" x-text="doc.literature.message"></div></template>
+            <template x-if="doc.literature && doc.literature.status === 'ok'">
+              <div>
+                <p class="small muted" x-show="!doc.literature.publications.length">There are no publications to compare.</p>
+
+                <!-- synthesis across all publications of this specific pair -->
+                <section class="layer pair rel-synth" x-show="doc.literature.publications.length" x-data="{ s: relevanceSummary() }">
+                  <div class="layer-tag">How close the literature is to your experiment</div>
+                  <p class="rel-headline">
+                    <span x-text="'Of ' + s.n + ' publication' + (s.n === 1 ? '' : 's') + ' on ' + (doc.overview ? doc.overview.ligand.label + '–' + doc.overview.receptor.label : 'this pair') + ', '"></span>
+                    <b x-text="s.pairSpecific"></b> <span x-text="(s.pairSpecific === 1 ? 'studies' : 'study') + ' the pair itself'"></span><span x-show="s.coMention" x-text="' and ' + s.coMention + ' only mention both molecules'"></span>.
+                    <template x-if="contextFilled()">
+                      <span><b x-text="s.close"></b> of the pair-specific ones overlap your experiment on organism, tissue or condition.</span>
+                    </template>
+                  </p>
+                  <div class="rel-aspects" x-show="contextFilled()">
+                    <template x-for="asp in ['Organism','Tissue','Condition','Cell types']" :key="asp">
+                      <span class="rel-asp" x-show="s.aspectMatch[asp]"><b x-text="s.aspectMatch[asp]"></b> <span x-text="'match ' + asp.toLowerCase()"></span></span>
+                    </template>
+                  </div>
+                  <div class="notice small" style="margin-top:10px" x-show="!contextFilled()">
+                    Add your tissue and condition to see which of these studies are closest to your experiment.
+                    <div style="margin-top: 6px"><button class="btn primary" type="button" @click="openContext()">Describe your experiment</button></div>
+                  </div>
+                  <div class="small muted" style="margin-top:8px" x-show="contextFilled()">
+                    Compared with: <span x-text="contextSummary()"></span>. <button class="toggle" type="button" @click="openContext()">Edit</button>
+                  </div>
+                </section>
+
+                <template x-for="(pub, i) in relevanceSorted().slice(0, showAll.rel ? 999 : 4)" :key="'rel' + pub.pmid + '-' + i">
+                  <article class="layer pub" :class="pub.pair_specific ? 'pair' : 'general'">
+                    <div class="layer-tag" x-text="pub.pair_specific ? 'Studies this pair' : (pub.co_mention_only ? 'Mentions both molecules only' : 'Pair-specific evidence unclear')"></div>
+                    <div class="pub-title"><a :href="pub.url" target="_blank" rel="noopener" x-text="pub.title"></a></div>
+                    <div class="meta"><span x-text="pub.year"></span><a :href="pub.url" target="_blank" rel="noopener" x-text="'PMID ' + pub.pmid"></a></div>
+                    <p class="quote" x-show="pub.what_studied" x-text="pub.what_studied"></p>
+                    <div class="rel-context" style="margin-top: 8px">
+                      <template x-for="a in pub.relevance.items" :key="a.aspect">
+                        <div class="aspect-row">
+                          <span class="muted" x-text="a.aspect"></span>
+                          <span class="status" :class="a.status" x-text="statusLabel(a.status)"></span>
+                          <span class="small">
+                            <span x-show="a.study" x-text="'Study: ' + a.study"></span>
+                            <span class="faint" x-show="!a.study && a.status === 'not_reported'">Not stated in the publication metadata</span>
+                            <span style="display:block" x-show="a.matches && a.matches.length" x-text="'Matched: ' + (a.matches || []).join('; ')"></span>
+                            <span class="faint" style="display:block" x-show="a.note" x-text="a.note"></span>
+                          </span>
+                        </div>
+                      </template>
+                    </div>
+                  </article>
+                </template>
+                <button class="btn" type="button" style="margin-top: 12px" x-show="doc.literature.publications.length > 4" @click="showAll.rel = !showAll.rel"
+                        x-text="showAll.rel ? 'Show the closest 4' : 'Show all ' + doc.literature.publications.length"></button>
+                <p class="note">Studies that examine the pair itself are shown first, then those whose organism, tissue or condition overlaps your experiment. Matching is by name from PubMed metadata and abstracts; similar but differently named cell types are not matched automatically.</p>
+              </div>
+            </template>
+          </div>
+
+          <!-- ======== D. Evidence in the user's dataset -->
+          <div class="stack" x-show="tab === 'data' && doc.overview" role="tabpanel">
+            <template x-if="doc.evidenceError"><div class="notice error" x-text="doc.evidenceError"></div></template>
+            <template x-if="!doc.evidence && !doc.evidenceError"><div><div class="skeleton"></div><div class="skeleton" style="width:70%"></div></div></template>
+            <template x-if="doc.evidence && !doc.evidence.available"><div class="notice" x-text="doc.evidence.message"></div></template>
+            <template x-if="doc.evidence && doc.evidence.available">
+              <div x-data="{ v: dataVerdict() }">
+                <section class="verdict" :class="v && v.level" x-show="v">
+                  <div class="verdict-line">
+                    <span x-text="(doc.overview ? doc.overview.ligand.label + '–' + doc.overview.receptor.label : 'This pair') + ' is '"></span><b x-text="v ? v.text : ''"></b>.
+                  </div>
+                  <div class="verdict-facts small">
+                    <span x-text="doc.overview ? doc.overview.ligand.label + ' detected in ' + pct(v.lig) + ' of ' + doc.evidence.ligand.population + ' cells' : ''"></span>
+                    <span x-text="doc.overview ? '· ' + doc.overview.receptor.label + ' in ' + pct(v.rcp) + ' of ' + doc.evidence.receptor.population + ' cells' : ''"></span>
+                    <span x-show="v && v.rank" x-text="'· receptor detection ranks ' + ordinal(v.rank) + ' of ' + v.nPop + ' populations'"></span>
+                  </div>
+                  <p class="small faint" style="margin-top:6px" x-show="v && v.specific">A receptor detected mainly in this population is more convincing than one expressed everywhere: it means the signal can land specifically here.</p>
+                  <p class="small faint" style="margin-top:6px" x-show="v && !v.specific && v.present">Both partners are present, but the receptor is detected broadly, so expression alone does not single out this population.</p>
+                </section>
+                <p class="notice small" style="margin-bottom:12px" x-show="doc.evidence.data_note" x-text="doc.evidence.data_note"></p>
+                <template x-for="side in ['receptor', 'ligand']" :key="side">
+                  <section class="layer data">
+                    <div class="layer-tag" x-text="'Computed from your data: ' + doc.evidence.dataset"></div>
+                    <h3 x-text="(side === 'receptor' ? 'Receptor ' : 'Ligand ') + doc.evidence[side].label + ' in ' + doc.evidence[side].population"></h3>
+                    <p class="small muted" x-text="doc.evidence[side].n_cells + ' cells in this population' + (side === 'receptor' ? ' (the receiver)' : ' (the sender)') + '.'"></p>
+                    <p class="small muted" x-show="doc.evidence[side].note" x-text="doc.evidence[side].note"></p>
+
+                    <template x-for="su in doc.evidence[side].subunits.filter(x => x.found)" :key="su.gene">
+                      <div class="expr-row">
+                        <div class="expr-gene" x-text="su.gene"></div>
+                        <div class="expr-bar" :title="pct(su.detected) + ' of cells'"><i :style="'width:' + (su.detected * 100) + '%'"></i></div>
+                        <div class="expr-val num" x-text="pct(su.detected)"></div>
+                        <div class="expr-meta small muted">
+                          <span x-text="'mean ' + su.mean.toFixed(2)"></span>
+                          <span x-text="ordinal(su.rank) + ' of ' + su.n_populations + ' populations'"></span>
+                        </div>
+                        <details class="more expr-more"><summary>Highest detection elsewhere</summary>
+                          <template x-for="t in su.top" :key="t.population"><div class="small"><span x-text="t.population"></span> <span class="muted num" x-text="pct(t.detected)"></span></div></template>
+                        </details>
+                      </div>
+                    </template>
+
+                    <div class="joint" x-show="doc.evidence[side].joint">
+                      <span class="num" x-text="doc.evidence[side].joint ? pct(doc.evidence[side].joint.detected) : ''"></span>
+                      <span x-text="'of cells express all ' + doc.evidence[side].subunits.length + ' subunits together. Least detected subunit: ' + (doc.evidence[side].joint ? doc.evidence[side].joint.limiting_subunit : '') + '.'"></span>
+                    </div>
+                  </section>
+                </template>
+
+                <section class="layer general">
+                  <div class="layer-tag">Comparison between conditions</div>
+                  <p class="small" x-text="doc.evidence.pseudobulk.reason"></p>
+                </section>
+
+                <p class="caution" x-text="doc.evidence.caution"></p>
+                <details class="more" style="margin-top:8px"><summary>How these numbers are computed</summary>
+                  <template x-for="(txt, key) in doc.evidence.definitions" :key="key"><p class="small" style="margin-top:4px"><b x-text="key.charAt(0).toUpperCase() + key.slice(1) + ':'"></b> <span x-text="txt"></span></p></template>
+                </details>
+              </div>
+            </template>
+          </div>
+
+          <!-- ======== D. Expert assessment -->
+          <div class="stack" x-show="tab === 'response' && doc.overview" role="tabpanel">
+            <section class="layer data">
+              <div class="layer-tag">Computed from your data: is there a signalling response?</div>
+              <p class="small muted">Within <b x-text="doc.overview ? doc.overview.receiver : ''"></b>, cells with the receptor are compared with cells without it: pathway activity, transcription factor activity and target genes.</p>
+              <p class="small" x-show="!doc.response && !doc.responseError"><span class="spinner"></span> Computing the response (a few seconds)…</p>
+              <div class="notice error small" x-show="doc.responseError" x-text="doc.responseError"></div>
+              <template x-if="doc.response && (!doc.response.available || !doc.response.testable)">
+                <p class="small muted" x-text="doc.response.message"></p>
+              </template>
+              <template x-if="doc.response && doc.response.available && doc.response.testable">
+                <div>
+                  <div class="resp-chain small">
+                    <span class="chip" x-text="doc.response.sender"></span><span class="arrow">→</span>
+                    <b x-text="doc.response.ligand"></b><span class="arrow">→</span><b x-text="doc.response.receptor"></b>
+                    <span class="arrow">→</span><span>pathways</span><span class="arrow">→</span><span>TFs</span><span class="arrow">→</span><span>target genes</span>
+                    <span class="muted" x-text="'in ' + doc.response.receiver"></span>
+                  </div>
+                  <p class="small" style="margin-top:6px"><b x-text="doc.response.n_positive"></b> cells with the receptor<span x-show="doc.response.subunits.length > 1"> (all subunits)</span>, <b x-text="doc.response.n_negative"></b> without<span class="muted" x-show="doc.response.sampled" x-text="' (sampled: ' + doc.response.cells_used.positive + ' and ' + doc.response.cells_used.negative + ')'"></span>.</p>
+
+                  <div class="notice small" x-show="doc.response.low_power" style="margin-top:8px">
+                    <b>Little power:</b> <span x-text="'only ' + Math.min(doc.response.n_positive, doc.response.n_negative) + ' cells in the smaller group. Small differences cannot be detected, and large ones may be chance.'"></span></div>
+                  <div class="notice small" x-show="doc.response.quality_warning" style="margin-top:8px" x-text="doc.response.quality_warning"></div>
+
+                  <h4 class="resp-h">Pathway activity (PROGENy)</h4>
+                  <p class="small muted" x-show="!Object.keys(doc.response.expected_matches || {}).length">None of the receptor’s Reactome pathways matches a PROGENy pathway by name, so no pathway is marked as expected.</p>
+                  <div class="resp-bars">
+                    <template x-for="p in doc.response.pathways" :key="p.name">
+                      <div class="resp-row" :class="p.expected ? 'expected' : ''" :title="p.expected ? 'Expected from: ' + p.expected_because.join('; ') : ''">
+                        <span class="resp-name" x-text="p.name"></span>
+                        <span class="resp-bar"><i :class="p.effect_size >= 0 ? 'up' : 'down'" :style="barStyle(p.effect_size)"></i></span>
+                        <span class="num small" x-text="fmtEffect(p)"></span>
+                      </div>
+                    </template>
+                  </div>
+                  <p class="small faint">Highlighted: pathways expected for this receptor (<span x-text="doc.response.expected_source"></span>). Bars: effect size, higher in cells with the receptor to the right.</p>
+
+                  <h4 class="resp-h">Transcription factors linked to the receptor</h4>
+                  <p class="small muted" x-show="!doc.response.tfs_linked.length">No transcription factor is linked to this receptor in SIGNOR within three steps.</p>
+                  <table class="mini-table" x-show="doc.response.tfs_linked.length">
+                    <thead><tr><th>TF</th><th>Path (SIGNOR)</th><th class="right">Effect</th><th class="right">FDR</th></tr></thead>
+                    <tbody><template x-for="t in doc.response.tfs_linked.slice(0, 8)" :key="t.name"><tr>
+                      <td><b x-text="t.name"></b></td><td class="small muted" x-text="t.path"></td>
+                      <td class="right num" x-text="(t.effect_size >= 0 ? '+' : '') + t.effect_size.toFixed(2)"></td><td class="right num" x-text="fmtFdr(t.fdr)"></td></tr></template></tbody>
+                  </table>
+                  <h4 class="resp-h">Transcription factors that differ most</h4>
+                  <div class="resp-bars">
+                    <template x-for="t in doc.response.tfs_top.slice(0, 10)" :key="t.name">
+                      <div class="resp-row" :class="t.fdr < 0.05 ? 'sig' : ''"
+                           :title="'FDR ' + fmtFdr(t.fdr) + ' · ' + t.targets + ' targets · TF detected in ' + Math.round(t.tf_detected * 100) + '% of cells'">
+                        <span class="resp-name" x-text="t.name"></span>
+                        <span class="resp-bar"><i :class="t.effect_size >= 0 ? 'up' : 'down'" :style="barStyle(t.effect_size)"></i></span>
+                        <span class="num small" x-text="fmtEffect(t)"></span>
+                      </div>
+                    </template>
+                  </div>
+                  <p class="small faint">Bars: activity difference, higher in cells with the receptor to the right. <b>*</b> marks FDR &lt; 0.05. <span x-text="'Only TFs detected in at least ' + Math.round(doc.response.tf_min_detected * 100) + '% of the receiver cells and with at least ' + doc.response.min_targets + ' targets are shown' + (doc.response.tfs_hidden ? ' (' + doc.response.tfs_hidden + ' hidden).' : '.')"></span></p>
+                  <details class="more"><summary>Show the numbers</summary>
+                    <table class="mini-table">
+                      <thead><tr><th>TF</th><th class="right">Effect</th><th class="right">FDR</th><th class="right">Targets</th><th class="right">TF detected</th></tr></thead>
+                      <tbody><template x-for="t in doc.response.tfs_top.slice(0, 10)" :key="t.name"><tr>
+                        <td x-text="t.name"></td><td class="right num" x-text="(t.effect_size >= 0 ? '+' : '') + t.effect_size.toFixed(2)"></td>
+                        <td class="right num" x-text="fmtFdr(t.fdr)"></td><td class="right num" x-text="t.targets"></td>
+                        <td class="right num" x-text="Math.round(t.tf_detected * 100) + '%'"></td></tr></template></tbody>
+                    </table>
+                  </details>
+
+                  <h4 class="resp-h">Target genes</h4>
+                  <template x-for="g in doc.response.targets" :key="g.tf">
+                    <details class="more"><summary x-text="g.tf + ' (' + g.tf_direction + '): ' + g.consistent + ' of ' + g.n_changed + ' targets move in the expected direction (' + (g.share === null ? '–' : Math.round(g.share * 100) + '%') + '; about 50% expected by chance' + (g.p_vs_chance < 0.05 ? ', more than chance' : ', not more than chance') + ')'"></summary>
+                      <table class="mini-table"><thead><tr><th>Gene</th><th>Regulation</th><th class="right">With receptor</th><th class="right">Without</th></tr></thead>
+                        <tbody><template x-for="r in g.top" :key="r.gene"><tr><td x-text="r.gene"></td><td class="small muted" x-text="r.mode"></td>
+                          <td class="right num" x-text="r.mean_positive.toFixed(2)"></td><td class="right num" x-text="r.mean_negative.toFixed(2)"></td></tr></template></tbody></table>
+                    </details>
+                  </template>
+                  <p class="caution" style="margin-top:12px" x-text="doc.response.caution"></p>
+                  <details class="more"><summary>How this is computed</summary><p x-text="doc.response.method"></p>
+                    <p x-text="'Transcription factors linked to the receptor: ' + doc.response.linked_source + '.'"></p></details>
+                  <p class="small" style="margin-top:8px">If the receiver shows the expected response, keep the interaction with the <b>Assessment</b> checkbox in the table; otherwise uncheck it to remove it.</p>
+                </div>
+              </template>
+            </section>
+          </div>
+
+        </div>
+      </template>
+      <div class="modal-backdrop" x-show="mechBig && doc.mech" x-cloak @click.self="mechBig = false" @keydown.escape.window="mechBig = false">
+        <div class="modal" style="max-width: 900px">
+          <div class="modal-head"><h2 style="font-size:17px" x-text="doc.mech ? doc.mech.ligand.label + ' → ' + doc.mech.receptor.label + ': ' + doc.mech.type_label : ''"></h2></div>
+          <div class="modal-body">
+            <div class="mech-fig" x-show="mechView === 'schematic'" x-html="doc.mech ? mechanismSvg(doc.mech, mechSignal) : ''"></div>
+            <template x-if="mechView === 'reactome' && doc.mech && doc.mech.reactome && doc.mech.reactome.items && doc.mech.reactome.items.length">
+              <div class="mech-fig rx-fig"><img :src="doc.mech.reactome.items[mechRx].svg" :alt="doc.mech.reactome.items[mechRx].name"></div>
+            </template>
+            <p class="small muted" x-text="doc.mech ? doc.mech.caution : ''"></p></div>
+          <div class="modal-foot"><button class="btn" type="button" @click="mechBig = false">Close</button></div>
+        </div>
+      </div>
+    </aside>

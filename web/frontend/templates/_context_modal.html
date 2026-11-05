@@ -1,0 +1,21 @@
+  <!-- ============================================================ experiment modal -->
+  <div class="modal-backdrop" x-show="contextOpen" x-cloak @click.self="contextOpen = false">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ctx-title">
+      <div class="modal-head">
+        <h2 id="ctx-title" style="font-size: 17px">Your experiment</h2>
+        <p>Optional. Used only to compare publications with your data in the Case study relevance tab.</p>
+      </div>
+      <div class="modal-body">
+        <div class="field"><label for="c-org">Organism</label><input id="c-org" class="input" x-model="contextDraft.organism" placeholder="e.g. Human"></div>
+        <div class="field"><label for="c-tis">Tissue or organ</label><input id="c-tis" class="input" x-model="contextDraft.tissue_or_organ" placeholder="e.g. Pancreatic islet"></div>
+        <div class="field"><label for="c-dis">Disease or biological state</label><input id="c-dis" class="input" x-model="contextDraft.disease_or_condition" placeholder="e.g. Healthy / type 2 diabetes"></div>
+        <div class="field"><label for="c-grp">Experimental groups, separated by commas</label><input id="c-grp" class="input" x-model="contextDraft.groupsText" placeholder="e.g. proliferative, secretory"></div>
+        <div class="field"><label for="c-notes">Notes</label><textarea id="c-notes" class="input" x-model="contextDraft.notes"></textarea></div>
+        <p class="small faint">Cell populations are taken from your results automatically.</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" @click="contextOpen = false">Cancel</button>
+        <button class="btn primary" type="button" @click="saveContext()">Save experiment</button>
+      </div>
+    </div>
+  </div>

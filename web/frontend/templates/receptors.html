@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Receptors · HICCI{% endblock %}
+{% block head %}<script defer src="/static/js/common.js?v={{ v }}"></script><script defer src="/static/js/receptors.js?v={{ v }}"></script>{% endblock %}
+
+{% block body %}
+<div class="app app-scroll" x-data="receptorsApp()" x-init="init()" @keydown.escape.window="contextOpen = false">
+  {% include "_topbar.html" %}
+  <div class="page page-wide">
+    <div class="page-head">
+      <h1>Receptor explorer</h1>
+      <p class="muted small">Which receptors recur in a chosen set of interactions (reported by all tools, or at the top of one tool’s own list), and which ligands and populations signal to them. Complexes are kept whole.</p>
+    </div>
+
+    <div class="card nw-filters">
+      <div class="field">
+        <label for="r-top">Top set</label>
+        <select id="r-top" class="select" x-model="f.top" @change="load()" style="min-width:260px; max-width:none">
+          <template x-if="methodsList.length > 1"><option value="all">Reported by all tools</option></template>
+          <template x-if="methodsList.length > 1"><option value="two">Reported by at least two tools</option></template>
+          <template x-for="m in methodsList" :key="m">
+            <optgroup :label="m">
+              <option :value="m + ':95'" x-text="'Top 5% of ' + m + '’s own results'"></option>
+              <option :value="m + ':99'" x-text="'Top 1% of ' + m + '’s own results'"></option>
+            </optgroup>
+          </template>
+        </select>
+      </div>
+      <div class="field">
+        <label for="r-min">Receptors with at least</label>
+        <select id="r-min" class="select" x-model.number="f.min_events" @change="load()" style="min-width:120px">
+          <template x-for="t in [5, 10, 25, 50]" :key="t"><option :value="t" :selected="f.min_events === t" x-text="t + ' interactions'"></option></template>
+        </select>
+      </div>
+      <div class="field">
+        <label for="r-q">Find a receptor</label>
+        <input id="r-q" class="input" type="search" x-model="q" placeholder="e.g. CD74">
+      </div>
+      <div class="nw-summary small muted" x-show="data" x-text="data ? fmtInt(data.top_events) + ' in the top set, of ' + fmtInt(data.events) + ' interactions; ' + fmtInt(data.receptors.length) + ' receptors' : ''"></div>
+    </div>
+    <p class="small muted" style="margin-top:8px" x-show="f.top.includes(':')">The top of a single tool’s list can be dominated by broadly and highly expressed genes (for example ferritins).</p>
+
+    <div class="nw-main rx-main">
+      <section class="card" style="padding:0; overflow:hidden">
+        <div class="table-wrap" style="max-height: 72vh">
+          <table class="rq-table">
+            <thead><tr>
+              <th><span class="th-plain">Receptor</span></th>
+              <th class="right"><button class="th-btn" type="button" @click="sortBy('events')" :aria-sort="sort === 'events' ? 'descending' : 'none'">Interactions</button></th>
+              <th class="right"><button class="th-btn" type="button" @click="sortBy('top')" :aria-sort="sort === 'top' ? 'descending' : 'none'">In top set</button></th>
+              <th><button class="th-btn" type="button" @click="sortBy('fold')" :aria-sort="sort === 'fold' ? 'descending' : 'none'" :title="data ? data.definitions.fold : ''">Fold enrichment</button><span class="help-tip" tabindex="0" data-tip="How many times more often the receptor appears in the chosen set than among all interactions considered.">?</span></th>
+              <th class="right"><button class="th-btn" type="button" @click="sortBy('fdr')" :aria-sort="sort === 'fdr' ? 'ascending' : 'none'" :title="data ? data.definitions.fdr : ''">FDR</button><span class="help-tip" tabindex="0" data-tip="Fisher exact test p-value corrected for testing all receptors (Benjamini–Hochberg). Small = unlikely to be chance.">?</span></th>
+              <th class="right"><span class="th-plain">Ligands</span></th>
+            </tr></thead>
+            <tbody>
+              <template x-for="r in pageRows()" :key="r.receptor_key">
+                <tr :aria-selected="detail && detail.receptor_key === r.receptor_key" @click="open(r.receptor_key)" tabindex="0" @keydown.enter="open(r.receptor_key)">
+                  <td><span class="lr-pair" x-text="r.receptor"></span><span class="kind" x-show="r.complex">complex</span></td>
+                  <td class="right num" x-text="fmtInt(r.events)"></td>
+                  <td class="right num" x-text="fmtInt(r.top)"></td>
+                  <td><span class="fold"><i :style="'width:' + foldWidth(r.fold) + '%'"></i><b class="num" x-text="r.fold === null ? '–' : r.fold.toFixed(1) + '×'"></b></span></td>
+                  <td class="right num" x-text="fmtP(r.fdr)"></td>
+                  <td class="right num" x-text="r.ligands"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div class="empty" x-show="data && !filtered().length">No receptors match.</div>
+        </div>
+        <nav class="pager" aria-label="Pages">
+          <span class="muted num" x-text="fmtInt(filtered().length) + ' receptors, page ' + page + ' of ' + pages()"></span>
+          <div class="pager-btns">
+            <button class="btn" type="button" :disabled="page <= 1" @click="page--">Previous</button>
+            <button class="btn" type="button" :disabled="page >= pages()" @click="page++">Next</button>
+          </div>
+        </nav>
+      </section>
+
+      <aside class="card nw-side">
+        <div x-show="!detail" class="small muted">Select a receptor to see its ligands, the populations involved and its top-ranked interactions.</div>
+        <template x-if="detail">
+          <div>
+            <h2 class="pair-title" style="margin:0" x-text="detail.receptor"></h2>
+            <div class="small muted" x-show="detail.subunits.length > 1" x-text="'Complex of ' + detail.subunits.join(', ')"></div>
+            <div class="small" style="margin-top:6px" x-text="fmtInt(detail.events) + ' interactions, ' + fmtInt(detail.top) + ' in the top set'"></div>
+            <div class="tabs nw-tabs" role="tablist" style="padding:0; margin-top:10px">
+              <template x-for="t in [['ligands','Ligands'],['receivers','Receivers'],['senders','Senders'],['events','Top set'],['functions','Ligand functions']]" :key="t[0]">
+                <button class="tab" role="tab" type="button" :aria-selected="tab === t[0]" @click="tab = t[0]" x-text="t[1]"></button>
+              </template>
+            </div>
+
+            <div x-show="tab === 'ligands'">
+              <table class="mini-table"><thead><tr><th>Ligand</th><th class="right">Interactions</th><th class="right">In top set</th><th class="right">Tools (max)</th></tr></thead>
+                <tbody><template x-for="l in detail.ligands" :key="l.ligand_key"><tr><td x-text="l.ligand"></td><td class="right num" x-text="l.events"></td><td class="right num" x-text="l.top"></td><td class="right num" x-text="l.tools + '/' + nTools()"></td></tr></template></tbody></table>
+            </div>
+            <template x-for="side in ['receivers', 'senders']" :key="side">
+              <div x-show="tab === side">
+                <table class="mini-table"><thead><tr><th x-text="side === 'receivers' ? 'Receiver' : 'Sender'"></th><th class="right">Interactions</th><th class="right">In top set</th><th class="right">Tools (max)</th></tr></thead>
+                  <tbody><template x-for="p in detail[side]" :key="side + p.population"><tr><td x-text="p.population"></td><td class="right num" x-text="p.events"></td><td class="right num" x-text="p.top"></td><td class="right num" x-text="p.tools + '/' + nTools()"></td></tr></template></tbody></table>
+              </div>
+            </template>
+            <div x-show="tab === 'events'">
+              <ul class="list" style="margin-top:8px">
+                <template x-for="e in detail.top_events" :key="e.result_id">
+                  <li class="nw-row">
+                    <div>
+                      <div class="small"><span x-text="e.sender"></span> <span class="faint">to</span> <span x-text="e.receiver"></span></div>
+                      <span class="lr-pair" x-text="e.ligand + ' → ' + detail.receptor"></span>
+                      <div class="meta"><span x-text="'reported by ' + e.method_count + '/' + nTools() + ' tools'"></span>
+                        <template x-for="(v, m) in e.ranks" :key="m"><span class="num" x-show="v !== null" x-text="m + ' ' + fmtPct(v)"></span></template></div>
+                    </div>
+                    <a class="row-action" :href="'/interactions?selected=' + e.result_id">Open</a>
+                  </li>
+                </template>
+              </ul>
+            </div>
+            <div x-show="tab === 'functions'">
+              <p class="small muted" style="margin-top:8px">Annotated functions over-represented among the ligands of this receptor in the top set, against all ligands considered. Uses g:Profiler (internet needed).</p>
+              <button class="btn primary" type="button" @click="loadFunctions()" x-show="!fn && !fnBusy">Find ligand functions</button>
+              <p class="small" x-show="fnBusy"><span class="spinner"></span> Asking g:Profiler…</p>
+              <div class="notice error small" x-show="fnError" x-text="fnError"></div>
+              <template x-if="fn">
+                <div>
+                  <p class="small muted" x-text="fn.query.length + ' ligand genes, background ' + fn.background_size + '. ' + (fn.terms.length ? '' : 'No significant terms.')"></p>
+                  <table class="mini-table" x-show="fn.terms.length"><thead><tr><th>Term</th><th>Source</th><th class="right">Overlap</th><th class="right">Adj. p</th></tr></thead>
+                    <tbody><template x-for="t in fn.terms" :key="t.id"><tr><td x-text="t.name"></td><td class="small muted" x-text="t.source"></td><td class="right num" x-text="t.overlap + '/' + t.term_size"></td><td class="right num" x-text="fmtP(t.p)"></td></tr></template></tbody></table>
+                  <p class="note" x-text="fn.note"></p>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </aside>
+    </div>
+    <p class="small muted" style="margin-top:14px" x-show="data" x-text="data ? data.caution : ''"></p>
+  </div>
+  {% include "_context_modal.html" %}
+</div>
+{% endblock %}

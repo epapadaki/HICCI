@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Created at run time by the web app
+web/workspace/*
+!web/workspace/.gitkeep
+
+# Per-dataset outputs (large, reproducible)
+datasets/*/expression/
+datasets/*/run/
+datasets/*/previous_results_*/
+
+# Local data files that users add themselves
+data/cellphonedb/*.h5ad
+data/cellphonedb/database/
+
+# Databases with users' assessments (keep them out of the repository)
+database/*.db
+
+# Secrets
+.env
+
+
+# old versions and local material
+web_backup_*/
+/backend/
+/frontend/
+/run.py
+results/
+workspace/
+external/
+*.docx
+~$*
+*.log
+desktop.ini
+evidence_profile_*.csv
+*.drawio
+CCC_overview_figure.*
+overview_figure.*
+usecase.*
+
+# test uploads: keep only the melanoma example
+data/uploads/*
+
+
+# datasets: keep only the melanoma example description
+datasets/*
+!datasets/melanoma_tme/
+datasets/melanoma_tme/*
+!datasets/melanoma_tme/dataset.json
+
+# old example and helper files
+data/cellphonedb/endometrium_example_meta.tsv
+files.txt

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Review queue · HICCI{% endblock %}
+{% block head %}<script defer src="/static/js/mechanism.js?v={{ v }}"></script><script defer src="/static/js/common.js?v={{ v }}"></script><script defer src="/static/js/review.js?v={{ v }}"></script>{% endblock %}
+
+{% block body %}
+<div class="app" x-data="reviewApp()" x-init="init()" @keydown.escape.window="onEscape()">
+  {% include "_topbar.html" %}
+
+  <div class="rq-head">
+    <div class="rq-title">
+      <h1>Review queue</h1>
+      <p class="muted small">Interactions where an expert’s judgement is most informative. Interactions whose assessments already agree leave the queue.</p>
+    </div>
+    <div class="rq-summary small" x-show="data.summary" x-cloak>
+      <span><b class="num" x-text="fmtInt(data.summary ? data.summary.reviewed : 0)"></b> interactions assessed</span>
+      <span><b class="num" x-text="fmtInt(data.summary ? data.summary.resolved : 0)"></b> resolved</span>
+      <button class="link-btn" style="height:auto" type="button" @click="criteriaOpen = !criteriaOpen" :aria-expanded="criteriaOpen">Queue criteria</button>
+      <a href="/api/assessments/export.csv">Export assessments (CSV)</a>
+    </div>
+  </div>
+
+  <div>
+    <div class="rq-criteria" x-show="criteriaOpen" x-cloak>
+      <div class="field"><label for="t-single">“Found by one tool only”: that tool’s own rank at least</label><input id="t-single" class="input num" type="number" min="90" max="100" step="0.1" x-model.number="t.single"></div>
+      <div class="field"><span class="label">&nbsp;</span><div style="display:flex;gap:8px"><button class="btn primary" type="button" @click="page = 1; load()">Apply</button><button class="btn" type="button" @click="resetCriteria()">Defaults</button></div></div>
+    </div>
+
+    <div class="rq-sort small">
+      <label for="rq-sort">Order within a category</label>
+      <select id="rq-sort" class="select" x-model="sortBy" @change="page = 1; load()">
+        <option value="">Alphabetical (ligand, receptor)</option>
+        <template x-for="m in data.methods" :key="'s' + m"><option :value="m" x-text="'By ' + m + ' rank'"></option></template>
+      </select>
+      <span class="faint">Each tool’s rank is shown in its own column and is never combined with the others.</span>
+    </div>
+    <div class="rq-cats" role="tablist" aria-label="Queue categories">
+      <button type="button" class="rq-cat" role="tab" :aria-selected="category === null" @click="setCategory(null)">
+        <span class="rq-count num" x-text="fmtInt(totalQueued())"></span>
+        <span class="rq-label">All in queue</span>
+        <span class="rq-why">Expert revisits first, then by how many tools report the interaction.</span>
+      </button>
+      <template x-for="c in data.categories" :key="c.key">
+        <button type="button" class="rq-cat" role="tab" :data-cat="c.key" :aria-selected="category === c.key" @click="setCategory(c.key)">
+          <span class="rq-count num" x-text="fmtInt(c.count)"></span>
+          <span class="rq-label" x-text="c.label"></span>
+          <span class="rq-why" x-text="c.why"></span>
+        </button>
+      </template>
+    </div>
+  </div>
+
+  <main class="main">
+    <section class="results" aria-label="Queue">
+      <div class="table-wrap">
+        <table class="rq-table">
+          <thead>
+            <tr>
+              <th><span class="th-plain">Why in queue</span></th>
+              <th><span class="th-plain">Sender → receiver</span></th>
+              <th><span class="th-plain">Ligand → receptor</span></th>
+              <template x-for="m in data.methods" :key="m"><th class="right col-score"><span class="th-plain" :title="'Rank within ' + m + '’s own results'" x-text="m + ' rank'"></span></th></template>
+              <th class="right"><span class="th-plain">Found by</span></th>
+              <th><span class="th-plain">Assessed</span></th>
+              <th><span class="th-plain">Knowledge</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="row in data.rows" :key="row.event_key">
+              <tr :aria-selected="selectedEvent === row.event_key" @click="open(row)" tabindex="0" @keydown.enter="open(row)">
+                <td><span class="cat-chip" :data-cat="row.category" x-text="catLabel(row.category)"></span></td>
+                <td><div class="cells-from" x-text="row.sender"></div><div class="cells-to" x-text="'to ' + row.receiver"></div></td>
+                <td><span class="lr-pair"><span x-text="row.ligand"></span><span class="arrow">→</span><span x-text="row.receptor"></span></span></td>
+                <template x-for="m in data.methods" :key="m">
+                  <td class="right col-score">
+                    <span class="rank" x-show="row.ranks[m] !== null">
+                      <span class="num" x-text="fmtPct(row.ranks[m])"></span>
+                      <i class="rank-bar"><i :style="'width:' + (row.ranks[m] || 0) + '%'"></i></i>
+                    </span>
+                    <span class="faint" x-show="row.ranks[m] === null" title="Not found by this method">–</span>
+                  </td>
+                </template>
+                <td class="right num" x-text="row.method_count + '/' + data.methods.length"></td>
+                <td>
+                  <span class="small faint" x-show="!row.n_reviews">No</span>
+                  <span x-show="row.n_reviews" class="status-chip" :title="'Decisions so far: ' + row.decisions" x-text="row.status"></span>
+                </td>
+                <td class="kn-cell"><div class="kn-icons" role="group" aria-label="Knowledge about this interaction">
+                  <template x-for="k in DOC_TABS" :key="k.key"><button type="button" class="kn-pill" :class="k.decision ? 'decision' : ''" :title="k.label" @click.stop="open(row, k.key)"><i class="ti" :class="k.icon"></i><span x-text="k.short"></span></button></template>
+                </div></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <div class="empty" x-show="!loading && data.rows && !data.rows.length" x-cloak>No interactions in this part of the queue with the current criteria.</div>
+      </div>
+      <nav class="pager" aria-label="Pages">
+        <span class="muted num" x-text="fmtInt(data.total) + ' interactions, page ' + data.page + ' of ' + fmtInt(data.pages)"></span>
+        <div class="pager-btns">
+          <button class="btn" type="button" :disabled="data.page <= 1" @click="goPage(data.page - 1)">Previous</button>
+          <button class="btn" type="button" :disabled="data.page >= data.pages" @click="goPage(data.page + 1)">Next</button>
+        </div>
+      </nav>
+    </section>
+
+    {% include "_doc_panel.html" %}
+  </main>
+
+  {% include "_context_modal.html" %}
+</div>
+{% endblock %}

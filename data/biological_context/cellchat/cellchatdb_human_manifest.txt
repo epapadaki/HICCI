@@ -1,0 +1,5 @@
+CellChat_version=2.2.0.9001
+complex_rows=338
+interaction_rows=3233
+referenced_complexes=334
+runtime_network_required=False

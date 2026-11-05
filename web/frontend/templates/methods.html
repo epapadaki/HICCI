@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Tool comparison · HICCI{% endblock %}
+{% block head %}<script defer src="/static/js/common.js?v={{ v }}"></script><script defer src="/static/js/methods.js?v={{ v }}"></script>{% endblock %}
+
+{% block body %}
+<div class="app app-scroll" x-data="methodsApp()" x-init="init()" @keydown.escape.window="contextOpen = false">
+  {% include "_topbar.html" %}
+  <div class="page">
+    <div class="page-head">
+      <h1>Tool comparison</h1>
+      <p class="muted small">Which interactions each tool reports, every tool with its own criteria. Agreement between tools is not the same as accuracy.</p>
+    </div>
+
+    <div class="notice error small" style="margin-top:16px" x-show="error" x-cloak x-text="error"></div>
+    <div x-show="!s && !error" style="margin-top:24px"><div class="skeleton" style="width:40%"></div><div class="skeleton" style="width:70%"></div></div>
+
+    <template x-if="s">
+      <div>
+        <!-- headline numbers -->
+        <div class="mc-head">
+          <div class="big-stat"><span class="num" x-text="fmtInt(s.events)"></span><span>interactions</span></div>
+          <template x-for="k in [3, 2, 1]" :key="k">
+            <div class="big-stat"><span class="num" x-text="fmtInt(s.support[k] || 0)"></span><span x-text="'reported by ' + k + ' of ' + s.methods.length + ' tools'"></span>
+              <i class="mini-bar"><i :style="'width:' + pctOf(s.support[k] || 0, s.events) + '%'"></i></i></div>
+          </template>
+        </div>
+
+        <div class="mc-grid">
+          <!-- combinations -->
+          <section class="card">
+            <h2 class="section-title">Which tools report which interactions</h2>
+            <p class="small muted">Each row is one combination of tools, with the number of interactions reported by exactly those tools. Select a row to list its interactions below.</p>
+            <div class="upset" role="list">
+              <div class="upset-head" :style="'grid-template-columns: repeat(' + s.methods.length + ', 48px) 1fr'">
+                <template x-for="m in s.methods" :key="'h' + m"><span class="upset-m" x-text="short(m)" :title="m"></span></template>
+                <span></span>
+              </div>
+              <template x-for="c in s.combinations" :key="c.key">
+                <button type="button" class="upset-row" role="listitem" :style="'grid-template-columns: repeat(' + s.methods.length + ', 48px) 1fr'" :aria-pressed="combo === c.key" @click="pickCombo(c.key)">
+                  <template x-for="m in s.methods" :key="c.key + m"><span class="upset-dot" :class="c.methods.includes(m) ? 'on' : ''"></span></template>
+                  <span class="upset-bar"><i :style="'width:' + pctOf(c.count, maxCombo()) + '%'"></i><b class="num" x-text="fmtInt(c.count)"></b></span>
+                </button>
+              </template>
+            </div>
+          </section>
+
+          <!-- per method -->
+          <section class="card">
+            <h2 class="section-title">Each tool</h2>
+            <table class="mini-table">
+              <thead><tr><th>Tool</th><th class="right">Interactions</th><th class="right">L–R pairs</th><th class="right">Cell pairs</th><th class="right" title="Share of the tool’s interactions that at least one other tool also reports">Shared</th></tr></thead>
+              <tbody>
+                <template x-for="p in s.per_method" :key="p.method">
+                  <tr><td x-text="p.method"></td><td class="right num" x-text="fmtInt(p.events)"></td><td class="right num" x-text="fmtInt(p.lr_pairs)"></td>
+                      <td class="right num" x-text="fmtInt(p.cell_pairs)"></td><td class="right num" x-text="(p.shared_share * 100).toFixed(0) + '%'"></td></tr>
+                </template>
+              </tbody>
+            </table>
+            <p class="small muted" style="margin-top:10px">Differences in ligand–receptor pairs largely reflect the databases each method uses.</p>
+          </section>
+        </div>
+
+        <!-- pairwise overlap -->
+        <section class="card" style="margin-top:20px">
+          <h2 class="section-title">Overlap between pairs of tools</h2>
+          <table class="mini-table">
+            <thead><tr><th>Tools</th><th class="right">Reported by both</th><th class="right" :title="s.definitions.jaccard">Overlap</th><th class="right" :title="s.definitions.share">Share of the first tool</th><th class="right" :title="s.definitions.share">Share of the second tool</th></tr></thead>
+            <tbody>
+              <template x-for="p in s.pairs" :key="p.a + p.b">
+                <tr>
+                  <td x-text="p.a + ' and ' + p.b"></td>
+                  <td class="right num" x-text="fmtInt(p.shared)"></td>
+                  <td class="right num" x-text="p.jaccard === null ? '–' : (p.jaccard * 100).toFixed(1) + '%'"></td>
+                  <td class="right num" x-text="p.share_of_a === null ? '–' : (p.share_of_a * 100).toFixed(1) + '% of ' + p.a"></td>
+                  <td class="right num" x-text="p.share_of_b === null ? '–' : (p.share_of_b * 100).toFixed(1) + '% of ' + p.b"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <p class="small muted" style="margin-top:10px" x-text="s.caution"></p>
+        </section>
+
+        <!-- events of a combination -->
+        <section class="card" style="margin-top:20px" id="combo-events">
+          <h2 class="section-title">Interactions of the selected combination</h2>
+          <p class="small muted" x-show="combo" x-text="(combo && combo.split('+').length === s.methods.length ? 'Reported by all tools' : 'Reported only by ' + (combo || '').split('+').join(' and ')) + '. Choose another combination in “Which tools report which interactions” above.'"></p>
+          <template x-if="combo && ev">
+            <div>
+              <div class="table-wrap" style="border:1px solid var(--border); max-height: 520px">
+                <table>
+                  <thead><tr><th><span class="th-plain">Sender → receiver</span></th><th><span class="th-plain">Ligand → receptor</span></th>
+                    <template x-for="m in s.methods" :key="'e' + m"><th class="right"><span class="th-plain" :title="'Rank within ' + m + '’s own results'" x-text="m + ' rank'"></span></th></template>
+                    <th></th></tr></thead>
+                  <tbody>
+                    <template x-for="r in ev.rows" :key="r.result_id">
+                      <tr>
+                        <td><div class="cells-from" x-text="r.sender"></div><div class="cells-to" x-text="'to ' + r.receiver"></div></td>
+                        <td><span class="lr-pair"><span x-text="r.ligand"></span><span class="arrow">→</span><span x-text="r.receptor"></span></span></td>
+                        <template x-for="m in s.methods" :key="r.result_id + m">
+                          <td class="right num"><span x-show="r.ranks[m] !== null" x-text="fmtPct(r.ranks[m])"></span><span class="faint" x-show="r.ranks[m] === null">–</span></td>
+                        </template>
+                        <td><a class="row-action" :href="'/interactions?selected=' + r.result_id" title="Open the biological documentation">Open</a></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <nav class="pager" aria-label="Pages" style="border:0; padding: 10px 0 0">
+                <span class="muted num" x-text="fmtInt(ev.total) + ' events, page ' + ev.page + ' of ' + fmtInt(ev.pages)"></span>
+                <div class="pager-btns">
+                  <button class="btn" type="button" :disabled="ev.page <= 1" @click="loadEvents(ev.page - 1)">Previous</button>
+                  <button class="btn" type="button" :disabled="ev.page >= ev.pages" @click="loadEvents(ev.page + 1)">Next</button>
+                </div>
+              </nav>
+            </div>
+          </template>
+        </section>
+      </div>
+    </template>
+  </div>
+  {% include "_context_modal.html" %}
+</div>
+{% endblock %}

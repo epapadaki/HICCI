@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Help · HICCI{% endblock %}
+{% block head %}<script defer src="/static/js/common.js?v={{ v }}"></script><script defer src="/static/js/help.js?v={{ v }}"></script>{% endblock %}
+
+{% block body %}
+<div class="app app-scroll" x-data="helpApp()" x-init="init()" @keydown.escape.window="contextOpen = false">
+  {% include "_topbar.html" %}
+  <div class="page help-page">
+    <div class="page-head">
+      <h1>Help</h1>
+      <p class="muted small">How to use the platform, what the terms mean, and where the data come from.</p>
+    </div>
+
+    <nav class="help-toc small" aria-label="On this page">
+      <a href="#start">Getting started</a><a href="#read">Reading an interaction</a><a href="#terms">Terms</a><a href="#sources">Data sources</a><a href="#cite">Citing</a>
+    </nav>
+
+    <section class="card help-sec" id="start">
+      <h2>Getting started</h2>
+      <ol class="help-steps">
+        <li><b>Add a dataset.</b> On <a href="/datasets">Datasets</a>, choose an <span class="mono">.h5ad</span> file, check the columns the platform suggests (cell types, and optionally samples and groups), and prepare it.</li>
+        <li><b>Run a tool.</b> Choose one tool (CellPhoneDB, NATMI, CellChat, SingleCellSignalR or ICELLNET); <i>Which tools suit this dataset?</i> recommends one for your data. Press <i>Run</i>; the progress is shown on the card. You can later run another tool and switch between their results; running several tools together to compare them is an advanced option.</li>
+        <li><b>Explore.</b> <a href="/interactions">Interactions</a> lists every interaction with the tools that report it, and <a href="/methods">Tools</a> how the tools overlap.</li>
+        <li><b>Assess.</b> In the interactions table, every interaction is kept by default; uncheck the <i>Assessment</i> box on any row to remove it. Enter your name in the <i>Reviewer</i> field first.</li>
+      </ol>
+      <p class="small muted">Describe your experiment with <i>Experiment details</i> in the top bar (tissue, condition). The <i>Case study relevance</i> tab then compares each publication with it.</p>
+    </section>
+
+    <section class="card help-sec" id="read">
+      <h2>Reading an interaction</h2>
+      <p>The documentation panel separates three kinds of information, marked by a coloured bar:</p>
+      <ul class="help-layers">
+        <li><i style="background: var(--layer-data)"></i><b>Computed from your data:</b> the tools’ predictions and the expression of the ligand and receptor in your cells.</li>
+        <li><i style="background: var(--layer-pair)"></i><b>About this pair:</b> what publications report about this ligand–receptor pair.</li>
+        <li><i style="background: var(--layer-general)"></i><b>About the receptor in general:</b> curated knowledge of the molecules and of receptor signalling, whatever ligand binds.</li>
+      </ul>
+      <p>Tabs: <b>Prior knowledge</b> (mechanism picture, molecule functions, pathways), <b>Literature support</b>, <b>Case study relevance</b> (how close each study is to your experiment), <b>Case study</b> (expression in your populations) and <b>Signalling response</b>.</p>
+      <p class="notice small">A prediction is a candidate from RNA expression. It does not show that the proteins bind, that the receptor is activated or that a pathway is active in your sample.</p>
+    </section>
+
+    <section class="card help-sec" id="terms">
+      <h2>Terms</h2>
+      <input class="input" type="search" placeholder="Find a term" x-model="q" style="max-width:320px">
+      <dl class="glossary">
+        <template x-for="t in terms()" :key="t[0]"><div><dt x-text="t[0]"></dt><dd x-text="t[1]"></dd></div></template>
+      </dl>
+    </section>
+
+    <section class="card help-sec" id="sources">
+      <h2>Data sources</h2>
+      <p class="small muted">Local copies are used so that analyses are reproducible and work offline. Dates are when each copy was made.</p>
+      <table class="mini-table">
+        <thead><tr><th>Source</th><th>Used for</th><th>Local copy</th></tr></thead>
+        <tbody>
+          <template x-for="s in sources" :key="s.name">
+            <tr><td><a :href="s.url" target="_blank" rel="noopener" x-text="s.name"></a></td><td class="small" x-text="s.use"></td>
+              <td class="small"><span class="status" x-show="s.local !== null" :class="s.local ? 'same' : 'not_set'" x-text="s.local ? 'installed' : 'not installed'"></span><span class="faint" x-show="s.local === null">with the tool</span>
+                <span class="faint" x-text="[s.version, s.date].filter(Boolean).join(', ')"></span></td></tr>
+          </template>
+        </tbody>
+      </table>
+      <p class="small muted" style="margin-top:8px">Each analysis also writes an analysis record with the exact versions and checksums (Datasets, <i>Check report</i>).</p>
+    </section>
+
+    <section class="card help-sec" id="cite">
+      <h2>Citing</h2>
+      <p>If you use results from the platform, please cite the platform (reference to be added on publication) and the original publications of the tools and databases you relied on: CellPhoneDB, NATMI, CellChat, SingleCellSignalR, ICELLNET, UniProt, Reactome and SIGNOR. The analysis record of each dataset lists the versions used and offers a draft Methods paragraph.</p>
+    </section>
+  </div>
+  {% include "_context_modal.html" %}
+</div>
+{% endblock %}

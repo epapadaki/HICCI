@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}HICCI{% endblock %}</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png?v={{ v }}">
+  <script>
+    (function () {
+      var t = 'light';
+      try { var s = localStorage.getItem('ccc-theme'); if (s === 'dark' || s === 'light') t = s; } catch (e) {}
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/css/tabler-icons.min.css?v={{ v }}">
+  <link rel="stylesheet" href="/static/css/app.css?v={{ v }}">
+  {% block head %}{% endblock %}
+  <script defer src="/static/js/alpine.min.js?v={{ v }}"></script>
+</head>
+<body>
+  {% block body %}{% endblock %}
+</body>
+</html>

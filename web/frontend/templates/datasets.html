@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+{% block title %}Datasets · HICCI{% endblock %}
+{% block head %}<script defer src="/static/js/common.js?v={{ v }}"></script><script defer src="/static/js/datasets.js?v={{ v }}"></script>{% endblock %}
+
+{% block body %}
+<div class="app app-scroll" x-data="datasetsApp()" x-init="init()" @keydown.escape.window="contextOpen = false">
+  {% include "_topbar.html" %}
+
+  <div class="page home">
+    <section class="welcome">
+      <div class="welcome-mark" aria-hidden="true">
+        <img src="/static/img/hicci-logo.png?v={{ v }}" alt="HICCI logo" style="width:170px;height:auto">
+      </div>
+      <h1>Welcome to HICCI</h1>
+      <p class="welcome-sub">From a single-cell dataset to curated cell–cell communication. The platform infers ligand–receptor interactions, documents the biology behind each one, checks it against your own data, and keeps the expert’s judgement at the centre.</p>
+      <div class="welcome-choice" x-show="!datasetsInfo.active" x-cloak>
+        <i class="ti ti-arrow-down"></i> To begin, <b>upload your own dataset</b> or <b>load the example</b> below.
+      </div>
+      <div class="welcome-choice loaded" x-show="datasetsInfo.active" x-cloak>
+        <span><i class="ti ti-database"></i> Loaded: <b x-text="activeDataset() ? activeDataset().label : ''"></b></span>
+        <a class="small" href="/interactions">Open interactions</a>
+        <button class="toggle" type="button" @click="unloadDataset()">Unload</button>
+      </div>
+    </section>
+
+    <section class="flow-chart" aria-label="How the platform works">
+      <template x-for="(s, i) in FLOW" :key="s.title">
+        <div class="flow-node-wrap">
+          <div class="flow-node" :class="flowState(i)">
+            <span class="flow-ico"><i class="ti" :class="s.icon"></i></span>
+            <span class="flow-num" x-text="'Step ' + (i + 1)"></span>
+            <b x-text="s.title"></b>
+            <span class="small muted" x-text="s.text"></span>
+            <a class="small" :href="s.href" x-show="s.href && flow && flow.has_results" x-text="s.link"></a>
+          </div>
+          <span class="flow-arrow" x-show="i < FLOW.length - 1" aria-hidden="true"><i class="ti ti-arrow-right"></i></span>
+        </div>
+      </template>
+    </section>
+    <p class="flow-loop small muted"><i class="ti ti-refresh"></i> Your assessment is kept with each interaction and can be exported to CSV.</p>
+
+    <div class="home-two">
+      <section class="home-card upload">
+        <div class="home-card-head">
+          <span class="home-ico"><i class="ti ti-upload"></i></span>
+          <div><div class="gc-label">Step 1</div><h2>Upload your own dataset</h2></div>
+        </div>
+        <details class="spec" open>
+          <summary><i class="ti ti-file-description"></i> What the dataset must look like</summary>
+          <ul class="spec-list">
+            <li><b>One AnnData file (.h5ad)</b>: cells × genes, as written by scanpy or anndata.</li>
+            <li><b>Expression values</b>: normalised, log-transformed values are expected. If the main matrix holds raw counts, keep a normalised layer and choose it when preparing the dataset.</li>
+            <li><b>Genes</b>: human gene symbols (HGNC, for example <span class="mono">CD74</span>, <span class="mono">TREM2</span>) as gene names, or in a column of <span class="mono">var</span>.</li>
+            <li><b>Cell types</b>: one column of <span class="mono">obs</span> with the annotated populations, or a separate TSV/CSV file with a cell identifier column and a cell-type column.</li>
+            <li><b>Optional</b>: a sample or donor column and a condition column (for example disease and control), for comparisons between groups.</li>
+            <li><b>Size</b>: at least 10 cells per population; very small populations give unreliable predictions with any tool.</li>
+          </ul>
+        </details>
+        <details class="spec">
+          <summary><i class="ti ti-route"></i> How a tool is chosen for your data</summary>
+          <ul class="spec-list">
+            <li><b>Population sizes</b>: CellChat’s statistical test drops populations with fewer than 10 cells; CellPhoneDB keeps them.</li>
+            <li><b>Dataset size</b>: with many cells or populations, faster tools (CellPhoneDB, NATMI) are preferred to CellChat’s permutation test.</li>
+            <li><b>Multi-subunit receptors</b>: CellPhoneDB, CellChat and ICELLNET keep complexes (integrins, cytokine receptors) whole; NATMI and SingleCellSignalR work on single genes.</li>
+            <li><b>Statistics and pathways</b>: CellChat gives a p-value and a signalling pathway for each interaction.</li>
+            <li><b>Your question</b>: for immune signalling (cytokines, chemokines, checkpoints), ICELLNET’s strictly curated database is a strong choice.</li>
+          </ul>
+          <p class="small faint">No tool is best in general; tools and their databases disagree substantially. The recommendation is about suitability for your data.</p>
+        </details>
+        <div class="add-form">
+        <div class="card">
+          <ol class="steps small">
+            <li :class="step >= 1 ? 'on' : ''">Files</li>
+            <li :class="step >= 2 ? 'on' : ''">Columns</li>
+            <li :class="step >= 3 ? 'on' : ''">Preparation</li>
+          </ol>
+
+          <!-- step 1 -->
+          <div x-show="step === 1" class="form-grid">
+            <div class="field">
+              <span class="label">Your single-cell file (.h5ad)</span>
+              <label class="dropzone" :class="{ over: dragOver, filled: h5adName }"
+                     @dragover.prevent="dragOver = true" @dragleave.prevent="dragOver = false" @drop.prevent="onDrop($event, 'h5ad')">
+                <input type="file" accept=".h5ad" class="sr-only" @change="onPick($event, 'h5ad')">
+                <template x-if="!h5adName">
+                  <span class="dz-empty"><i class="ti ti-upload"></i> <b>Choose a file</b> or drag it here<span class="small faint">.h5ad &middot; large files are fine</span></span>
+                </template>
+                <template x-if="h5adName">
+                  <span class="dz-filled"><i class="ti ti-file-check"></i> <b x-text="h5adName"></b><span class="small muted" x-text="h5adSize ? h5adSize + ' MB' : ''"></span><span class="dz-change">Change</span></span>
+                </template>
+              </label>
+              <div class="upbar" x-show="uploading" x-cloak><div class="upbar-fill" :style="'width:' + upPct + '%'"></div></div>
+            </div>
+
+            <div class="field">
+              <span class="label">Cell annotation file (optional)</span>
+              <label class="dropzone small" :class="{ over: dragOverMeta, filled: metaName }"
+                     @dragover.prevent="dragOverMeta = true" @dragleave.prevent="dragOverMeta = false" @drop.prevent="onDrop($event, 'metadata')">
+                <input type="file" accept=".tsv,.csv,.txt" class="sr-only" @change="onPick($event, 'metadata')">
+                <template x-if="!metaName"><span class="dz-empty"><i class="ti ti-upload"></i> Only if cell types are in a separate TSV/CSV</span></template>
+                <template x-if="metaName"><span class="dz-filled"><i class="ti ti-file-check"></i> <b x-text="metaName"></b><span class="dz-change">Change</span></span></template>
+              </label>
+              <span class="small faint">First column: cell identifiers; other columns: annotations.</span>
+            </div>
+
+            <details class="spec by-path">
+              <summary><i class="ti ti-folder"></i> Advanced: use a file already on this computer (by path)</summary>
+              <div class="field" x-show="files.h5ad.length" style="margin-top:8px">
+                <span class="label">Files found in the data folder</span>
+                <div class="file-list">
+                  <template x-for="f in files.h5ad" :key="f.path">
+                    <button type="button" class="file-pick" :aria-pressed="form.h5ad === f.path" @click="pickFile(f); h5adName = f.name; h5adSize = f.size_mb">
+                      <b x-text="f.name"></b><span class="small muted" x-text="f.folder + ', ' + f.size_mb + ' MB'"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+              <div class="field" style="margin-top:8px">
+                <label for="f-h5ad">Path of a .h5ad file</label>
+                <input id="f-h5ad" class="input mono" x-model="form.h5ad" @input="h5adName = ''" placeholder="data\my_study\counts.h5ad">
+                <span class="small faint">Full path, or a path inside the project folder. In Explorer: Shift + right-click the file, “Copy as path”.</span>
+              </div>
+              <div class="field" style="margin-top:8px">
+                <label for="f-meta">Path of an annotation file (optional)</label>
+                <input id="f-meta" class="input mono" x-model="form.metadata" @input="metaName = ''" placeholder="data\my_study\cells.tsv">
+              </div>
+            </details>
+            <div class="form-actions">
+              <button class="btn primary" type="button" @click="doInspect()" :disabled="busy || !form.h5ad">Read the file</button>
+              <span class="small" :class="msg.error ? 'err' : 'muted'" x-text="msg.text" role="status"></span>
+            </div>
+          </div>
+
+          <!-- step 2 -->
+          <div x-show="step === 2" x-cloak class="form-grid">
+            <div class="notice small">
+              <b class="num" x-text="fmtInt(info.n_cells)"></b> cells, <b class="num" x-text="fmtInt(info.n_genes)"></b> genes.
+              <span x-show="info.metadata_cells_matched !== null && info.metadata_cells_matched !== undefined" x-text="' ' + fmtInt(info.metadata_cells_matched) + ' cells found in the annotation file.'"></span>
+              <div style="margin-top:4px" x-show="info.counts && info.counts.note" x-text="info.counts ? info.counts.note : ''"></div>
+              <div style="margin-top:4px" x-show="info.genes && info.genes.note" x-text="info.genes ? info.genes.note : ''"></div>
+            </div>
+
+            <div class="field" x-show="(info.layers || []).length || info.has_raw">
+              <label for="f-matrix">Matrix to use</label>
+              <select id="f-matrix" class="select wide" x-model="form.matrix">
+                <option value="X">Main matrix (X)</option>
+                <template x-for="l in info.layers || []" :key="l"><option :value="'layer:' + l" x-text="'Layer: ' + l"></option></template>
+                <option value="raw" x-show="info.has_raw">Raw matrix (.raw)</option>
+              </select>
+              <span class="small faint">Choose raw counts if the file has them; they are needed for comparisons between conditions.</span>
+            </div>
+
+            <div class="two">
+              <div class="field"><label for="f-label">Name</label><input id="f-label" class="input" x-model="form.label" @input="autoId()" placeholder="e.g. Lung fibrosis, 2024"></div>
+              <div class="field"><label for="f-id">Identifier</label><input id="f-id" class="input mono" x-model="form.id" @input="idTouched = true"></div>
+              <div class="field"><label for="f-org">Organism</label><input id="f-org" class="input" x-model="form.organism" placeholder="e.g. Human"></div>
+              <div class="field"><label for="f-tis">Tissue</label><input id="f-tis" class="input" x-model="form.tissue" placeholder="e.g. Lung"></div>
+            </div>
+
+            <template x-for="role in roles" :key="role.key">
+              <div class="field">
+                <label :for="'f-' + role.key" x-text="role.label"></label>
+                <select :id="'f-' + role.key" class="select wide" x-model="form[role.key]">
+                  <option value="" x-text="role.required ? 'Choose a column' : 'None'"></option>
+                  <template x-for="c in info.columns || []" :key="c.name">
+                    <option :value="c.name" x-text="c.name + ' (' + c.n_unique + ' values)'"></option>
+                  </template>
+                </select>
+                <span class="small faint" x-text="role.help"></span>
+                <div class="chips" x-show="form[role.key]">
+                  <template x-for="e in examplesOf(form[role.key])" :key="e"><span class="chip" x-text="e"></span></template>
+                </div>
+              </div>
+            </template>
+
+            <div class="form-actions">
+              <button class="btn" type="button" @click="step = 1">Back</button>
+              <button class="btn primary" type="button" @click="doPrepare()" :disabled="busy">Prepare dataset</button>
+              <span class="small" :class="msg.error ? 'err' : 'muted'" x-text="msg.text" role="status"></span>
+            </div>
+          </div>
+
+          <!-- step 3 -->
+          <div x-show="step === 3" x-cloak>
+            <p class="small"><b x-text="job.title"></b></p>
+            <p class="small" x-show="job.state === 'running'"><span class="spinner" aria-hidden="true"></span> Running in the analysis environment. Large files can take several minutes.</p>
+            <pre class="log" x-text="job.log || '…'"></pre>
+            <template x-if="job.state === 'failed'">
+              <div class="notice error small"><b>The preparation failed.</b> <span x-text="job.error"></span>
+                <div style="margin-top:6px"><button class="btn" type="button" @click="step = 2">Back to the columns</button></div></div>
+            </template>
+            <template x-if="job.state === 'done' && job.result">
+              <div class="notice small">
+                <b>Ready.</b> <span x-text="fmtInt(job.result.n_cells) + ' cells, ' + job.result.n_cell_types + ' cell types.'"></span>
+                <ul class="warn-list" x-show="job.result.warnings.length"><template x-for="w in job.result.warnings" :key="w"><li x-text="w"></li></template></ul>
+                <p style="margin-top:6px">Next, choose a tool and run the analysis.</p>
+                <div style="margin-top:8px; display:flex; gap:8px"><button class="btn primary" type="button" @click="runAnalysisFor(lastId)"><i class="ti ti-player-play"></i> Run the analysis</button><button class="btn" type="button" @click="resetForm2()">Add another</button></div>
+              </div>
+            </template>
+          </div>
+        </div>
+        </div>
+      </section>
+
+      <section class="home-card example">
+        <div class="home-card-head">
+          <span class="home-ico ex"><i class="ti ti-microscope"></i></span>
+          <div><div class="gc-label">Try it first</div><h2>Example: melanoma tumour microenvironment</h2></div>
+        </div>
+        <p class="small">A human melanoma tumour microenvironment dataset from Tirosh et al. 2016 (GEO <b>GSE72056</b>): malignant cells together with the main stromal and immune populations — <b>T cells, B cells, NK cells, macrophages, endothelial cells and CAFs</b>.</p>
+        <ul class="spec-list small">
+          <li>Explore predicted interactions such as <b>TGFB1 → TGFBR2</b> (CAF → T cell) or <b>CXCL12 → CXCR4</b> (CAF → malignant).</li>
+          <li>See the mechanism picture, the literature, the expression in the populations and the receiver’s response.</li>
+          <li>Record an assessment for each interaction and watch the curated network sharpen from a dense hairball to a compact, melanoma-specific signalling network.</li>
+        </ul>
+        <template x-if="exampleDataset()">
+          <div class="ex-status small">
+            <span class="status" :class="exampleDataset().has_results ? 'same' : 'not_set'" x-text="exampleDataset().has_results ? 'Results available' : 'No results yet'"></span>
+            <span class="status" :class="exampleDataset().has_expression ? 'same' : 'not_set'" x-text="exampleDataset().has_expression ? 'Expression prepared' : 'Expression not prepared'"></span>
+          </div>
+        </template>
+        <div class="ex-actions">
+          <button class="btn primary" type="button" @click="runAnalysisFor('melanoma_tme')" x-show="exampleDataset()"><i class="ti ti-player-play"></i> Run the analysis</button>
+          <button class="btn" type="button" @click="openExample()" x-show="exampleDataset() && exampleDataset().has_results">Explore existing results</button>
+          <p class="small muted" x-show="!exampleDataset()">The example dataset is not installed. Place the prepared <span class="mono">melanoma_tme</span> dataset folder in <span class="mono">datasets/</span>.</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============ choose a tool ============ -->
+
+    <section class="home-sec" x-show="ownDatasets().length" x-cloak>
+      <div class="home-sec-head"><div><div class="gc-label">Your datasets</div><h2>Datasets you added</h2>
+        <p class="small muted">Each dataset keeps its own results, experiment description and expert assessments. The example is above.</p></div></div>
+      <div class="ds-list">
+        <template x-for="d in ownDatasets()" :key="d.id">
+          <article class="card ds-card" :class="d.id === datasetsInfo.active ? 'current' : ''">
+            <div class="ds-top">
+              <div>
+                <h3 x-text="d.label"></h3>
+                <div class="small faint mono" x-text="d.id"></div>
+              </div>
+              <span class="chip info" x-show="d.id === datasetsInfo.active">In use</span>
+            </div>
+            <div class="meta" style="margin-top:6px">
+              <span x-text="[d.organism, d.tissue].filter(Boolean).join(', ') || 'Organism and tissue not given'"></span>
+              <span class="num" x-show="d.n_cells" x-text="fmtInt(d.n_cells) + ' cells'"></span>
+              <span class="num" x-show="d.n_cell_types" x-text="d.n_cell_types + ' cell types'"></span>
+              <span x-show="d.groups && d.groups.length" x-text="'Groups: ' + (d.groups || []).join(', ')"></span>
+            </div>
+            <div class="chips">
+              <span class="status" :class="d.has_expression ? 'same' : 'not_set'" x-text="d.has_expression ? 'Expression prepared' : 'Expression not prepared'"></span>
+              <span class="status" :class="d.has_results ? 'same' : 'not_set'" x-text="d.has_results ? 'CCI results available' : 'No CCI results yet'"></span>
+            </div>
+            <div class="runs small" x-show="(d.runs || []).filter(r => r.available).length">
+              <span class="muted">Results:</span>
+              <template x-for="r in (d.runs || []).filter(r => r.available)" :key="r.run">
+                <span class="run-item">
+                  <b x-text="r.tools.length ? r.tools.join(' + ') : 'earlier results'"></b>
+                  <span class="faint" x-show="r.created" x-text="(r.created || '').slice(0, 10)"></span>
+                  <span class="chip info" x-show="r.active && d.id === datasetsInfo.active">shown</span>
+                  <button class="toggle" type="button" x-show="!(r.active && d.id === datasetsInfo.active)" @click="viewRun(d, r.run)">Show</button>
+                </span>
+              </template>
+            </div>
+            <div class="ds-actions">
+
+              <button class="btn" type="button" x-show="d.id !== datasetsInfo.active" @click="switchDataset(d.id)">Use this dataset</button>
+              <button class="toggle" type="button" @click="toggleDetails(d.id)" x-text="details[d.id] ? 'Hide check report' : 'Check report'"></button>
+              <button class="toggle danger" type="button" @click="deleteDataset(d)">Remove</button>
+            </div>
+            <template x-if="details[d.id]">
+              <div class="report">
+                <p class="small muted" x-show="!details[d.id].validation || !details[d.id].validation.n_cells">This dataset has not been checked yet (its expression matrix was not prepared here).</p>
+                <template x-if="details[d.id].validation && details[d.id].validation.n_cells">
+                  <div>
+                    <dl class="kv small">
+                      <dt>Matrix used</dt><dd x-text="details[d.id].validation.matrix_source"></dd>
+                      <dt>Raw counts</dt><dd x-text="details[d.id].validation.counts && details[d.id].validation.counts.looks_like_raw_counts ? 'Yes' : 'No (normalised values)'"></dd>
+                      <dt>Cell types</dt><dd x-text="details[d.id].cell_type_column"></dd>
+                      <dt>Samples</dt><dd x-text="details[d.id].sample_column ? details[d.id].sample_column + ' (' + details[d.id].validation.samples.length + ')' : 'Not defined'"></dd>
+                      <dt>Groups</dt><dd x-text="details[d.id].group_column ? details[d.id].group_column + ' (' + details[d.id].validation.groups.join(', ') + ')' : 'Not defined'"></dd>
+                    </dl>
+                    <ul class="warn-list" x-show="details[d.id].validation.warnings.length">
+                      <template x-for="w in details[d.id].validation.warnings" :key="w"><li x-text="w"></li></template>
+                    </ul>
+                    <template x-if="details[d.id].provenance">
+                      <div class="prov">
+                        <div class="card-label" style="margin-top:12px">Analysis record</div>
+                        <p class="small muted" x-show="!details[d.id].provenance.available" x-text="details[d.id].provenance.message"></p>
+                        <template x-if="details[d.id].provenance.available">
+                          <div>
+                            <p class="small">
+                              <span class="status" :class="details[d.id].provenance.record.status === 'finished' ? 'same' : 'different'"
+                                    x-text="details[d.id].provenance.record.status === 'finished' ? 'Finished' : 'Stopped: ' + (details[d.id].provenance.record.failed_step || '')"></span>
+                              <span class="muted" x-text="' ' + (details[d.id].provenance.record.finished || '') + (totalMinutes(details[d.id].provenance.record) ? ', about ' + totalMinutes(details[d.id].provenance.record) + ' min' : '')"></span>
+                            </p>
+                            <div class="sw-grid small">
+                              <template x-for="x in swList(details[d.id].provenance.record)" :key="x[0]">
+                                <div><span class="muted" x-text="x[0]"></span> <span class="num" x-text="x[1]"></span></div>
+                              </template>
+                            </div>
+                            <div class="field" style="margin-top:10px">
+                              <span class="label">Methods text (draft for your manuscript; check it before use)</span>
+                              <textarea class="input small" readonly rows="6" x-text="details[d.id].provenance.methods_text"></textarea>
+                            </div>
+                            <div class="ds-actions" style="margin-top:8px">
+                              <button class="btn" type="button" @click="copyText(details[d.id].provenance.methods_text, $event)">Copy text</button>
+                              <a class="btn" style="display:inline-flex;align-items:center;text-decoration:none" :href="'/api/datasets/' + encodeURIComponent(d.id) + '/provenance.json'">Download full record (JSON)</a>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                    <details class="more"><summary>Cells per population</summary>
+                      <div class="pop-grid">
+                        <template x-for="(n, name) in details[d.id].validation.cells_per_type" :key="name">
+                          <div class="small"><span x-text="name"></span> <span class="num muted" x-text="n"></span></div>
+                        </template>
+                      </div>
+                    </details>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </article>
+        </template>
+      </div>
+    </section>
+
+    <section class="home-sec system">
+    <section class="card env-status" :class="setupOk() ? 'ok' : (env.checked && methods ? 'bad' : '')">
+      <div class="env-line">
+        <div class="small">
+          <span class="dot" :class="setupOk() ? 'ok' : 'bad'" x-show="env.checked && methods"></span>
+          <span x-show="!env.checked || !methods"><span class="spinner" aria-hidden="true"></span> Checking the analysis tools…</span>
+          <span x-show="env.checked && methods && setupOk()" x-text="'Analysis tools ready: ' + readyText()"></span>
+          <span x-show="env.checked && methods && !setupOk()">Some analysis tools are not ready. Open the setup to see what is missing.</span>
+        </div>
+        <button class="toggle" type="button" @click="setupOpen = !setupOpen" x-text="setupOpen ? 'Hide setup' : 'Setup'"></button>
+      </div>
+      <div x-show="setupOpen" x-cloak style="margin-top:12px">
+    <div class="env-body">
+      <div class="env-line">
+        <div>
+          <div class="card-label">Analysis environment</div>
+          <div class="small" x-show="!env.checked">Checking…</div>
+          <div class="small" x-show="env.checked" x-text="env.ok ? env.message : (env.message || 'Not set')"></div>
+          <div class="small faint mono" x-show="env.path" x-text="env.path"></div>
+        </div>
+        <button class="btn" type="button" @click="envEdit = !envEdit" x-text="envEdit ? 'Close' : 'Change'"></button>
+      </div>
+      <p class="small muted" style="margin-top:6px">The Python that has <span class="mono">anndata</span> installed (for example your conda environment). Heavy steps run there, so the web app itself stays light.</p>
+      <div class="env-edit" x-show="envEdit" x-cloak>
+        <input class="input mono" x-model="envDraft" placeholder="C:\Users\you\miniconda3\envs\ccc-platform\python.exe">
+        <button class="btn primary" type="button" @click="saveEnv()" :disabled="envSaving">Test and save</button>
+      </div>
+      <div class="methods-check">
+        <div class="card-label">CCI tools on this computer</div>
+        <p class="small muted">Each tool is loaded the first time you select it on the Tools page. You can also check them all now (this can take a minute, and looks for R inside WSL).
+          <button class="btn" type="button" @click="checkMethods()" :disabled="checkingAll" style="margin-left:6px"><span class="spinner" x-show="checkingAll" aria-hidden="true"></span> <span x-text="checkingAll ? 'Checking…' : 'Check all tools'"></span></button></p>
+        <template x-if="methods">
+          <div class="mcheck">
+            <template x-for="m in [['cellphonedb','CellPhoneDB'],['natmi','NATMI'],['cellchat','CellChat (R)'],['singlecellsignalr','SingleCellSignalR (R)'],['icellnet','ICELLNET (R)']]" :key="m[0]">
+              <div class="mrow"><span class="dot" :class="methods[m[0]] && methods[m[0]].checked === false ? 'idle' : (methods[m[0]] && methods[m[0]].ok ? 'ok' : 'bad')"></span><b x-text="m[1]"></b> <span class="small muted" x-text="methods[m[0]] ? methods[m[0]].message : ''"></span></div>
+            </template>
+            <div class="env-edit" x-show="!methods.cellchat.ok || !methods.singlecellsignalr.ok || !methods.icellnet.ok">
+              <input class="input mono" x-model="rDraft" placeholder="C:\Program Files\R\R-4.6.1\bin\Rscript.exe  or  wsl:/home/you/miniforge3/envs/cellchat-env/bin/Rscript">
+              <button class="btn" type="button" @click="saveR()">Use this Rscript</button>
+            </div>
+            <p class="small faint" x-show="!methods.cellchat.ok || !methods.singlecellsignalr.ok || !methods.icellnet.ok">For an R that lives in Ubuntu (WSL), write <span class="mono">wsl:</span> followed by its Linux path; a conda environment is activated automatically.</p>
+            <div class="small faint mono" x-show="methods.rscript" x-text="'Rscript: ' + methods.rscript"></div>
+
+            <div class="env-edit" x-show="methods.cellphonedb && !methods.cellphonedb.ok" style="margin-top:8px">
+              <input class="input mono" x-model="cpdbDraft" placeholder="wsl:/home/you/miniforge3/envs/ccc-py/bin/python   (CellPhoneDB inside WSL)">
+              <button class="btn" type="button" @click="saveToolsPython()" :disabled="cpdbSaving"><span class="spinner" x-show="cpdbSaving" aria-hidden="true"></span> <span x-text="cpdbSaving ? 'Checking…' : 'Use this Python'"></span></button>
+            </div>
+            <p class="small faint" x-show="methods.cellphonedb && !methods.cellphonedb.ok">CellPhoneDB needs SciPy, whose freshly-installed DLLs a locked-down Windows (Application Control) can block. Run it inside Ubuntu (WSL): write <span class="mono">wsl:</span> followed by the Linux path of a Python that has <span class="mono">cellphonedb</span> installed (a conda env is activated automatically). Leave the field blank and save to fall back to the analysis environment.</p>
+            <div class="small faint mono" x-show="methods.tools_python" x-text="'CellPhoneDB Python: ' + methods.tools_python"></div>
+          </div>
+        </template>
+
+        <div class="setup-card" style="margin-top:14px">
+          <div class="setup-title">PubMed access (optional)</div>
+          <p class="small muted">The Literature support tab searches PubMed. It works without this, but NCBI is more reliable and faster when you add a contact e-mail and, optionally, a free API key.
+            <a href="https://support.nlm.nih.gov/kbArticle/?pn=KA-05317" target="_blank" rel="noopener">How to get an API key</a>.</p>
+          <div class="env-edit">
+            <input class="input" type="email" x-model="ncbiEmail" placeholder="you@example.com">
+            <input class="input mono" type="password" x-model="ncbiKey" :placeholder="ncbiKeySet ? 'API key saved — leave blank to keep it' : 'API key (optional)'">
+            <button class="btn" type="button" @click="saveNcbi()">Save</button>
+          </div>
+          <div class="small faint" x-show="ncbiSaved" x-text="ncbiSaved"></div>
+        </div>
+
+        <div class="setup-card danger-card" style="margin-top:14px">
+          <div class="setup-title">Demo mode — clean slate on every launch</div>
+          <p class="small muted">When on, the platform <b>erases every dataset you added and every assessment</b> each time it starts, so each session begins empty. The example stays. This cannot be undone — turn it off once you want your work to persist.</p>
+          <label class="switch-row">
+            <input type="checkbox" x-model="ephemeral" @change="saveEphemeral()">
+            <span x-text="ephemeral ? 'On — everything is wiped at each launch' : 'Off — datasets and assessments are kept'"></span>
+          </label>
+          <div class="small faint" x-show="ephemeralSaved" x-text="ephemeralSaved"></div>
+        </div>
+      </div>
+    </div>
+      </div>
+    </section>
+    </section>
+  </div>
+  {% include "_context_modal.html" %}
+</div>
+{% endblock %}

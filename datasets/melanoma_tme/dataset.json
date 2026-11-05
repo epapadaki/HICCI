@@ -1,0 +1,93 @@
+{
+  "id": "melanoma_tme",
+  "label": "melanoma tme",
+  "cell_type_column": "cell_type",
+  "sample_column": "sample",
+  "source": {
+    "counts": "data/uploads/melanoma_tme.h5ad"
+  },
+  "expression": "expression",
+  "validation": {
+    "n_cells": 4139,
+    "n_genes": 23686,
+    "n_cell_types": 7,
+    "cells_per_type": {
+      "B cell": 515,
+      "CAF": 61,
+      "Endothelial": 65,
+      "Macrophage": 125,
+      "Malignant": 1257,
+      "NK": 52,
+      "T cell": 2064
+    },
+    "samples": [
+      "53.0",
+      "58.0",
+      "59.0",
+      "60.0",
+      "65.0",
+      "67.0",
+      "71.0",
+      "72.0",
+      "74.0",
+      "75.0",
+      "78.0",
+      "79.0",
+      "80.0",
+      "81.0",
+      "82.0",
+      "84.0",
+      "88.0",
+      "89.0",
+      "94.0"
+    ],
+    "groups": [],
+    "counts": {
+      "looks_like_raw_counts": false,
+      "min": 5.027932274970226e-05,
+      "max": 6.6111297607421875,
+      "note": "Values are not whole numbers, so they look normalised or transformed. Detection (share of cells with expression > 0) is still valid; mean expression is computed on the values as given; condition comparisons (pseudobulk) need raw counts. Use --layer to point to a counts layer if one exists."
+    },
+    "genes": {
+      "n_genes": 23686,
+      "ensembl_share": 0.0,
+      "note": null
+    },
+    "warnings": [
+      "Values are not whole numbers, so they look normalised or transformed. Detection (share of cells with expression > 0) is still valid; mean expression is computed on the values as given; condition comparisons (pseudobulk) need raw counts. Use --layer to point to a counts layer if one exists. The file also contains layers: counts, None."
+    ],
+    "matrix_source": "X",
+    "available_layers": [
+      "counts",
+      "None"
+    ],
+    "has_raw": false
+  },
+  "runs": {
+    "cellchat": {
+      "consensus": "datasets/melanoma_tme/runs/cellchat/results/consensus_candidate_complex_aware/consensus_cellchat.csv",
+      "tools": [
+        "CellChat"
+      ],
+      "created": "2026-10-16 12:53:45",
+      "cellchat": "datasets/melanoma_tme/runs/cellchat/results/cellchat/standardized_interactions.csv",
+      "cellchat_run_info": "datasets/melanoma_tme/runs/cellchat/results/cellchat/run_info.csv",
+      "run": "cellchat",
+      "provenance": "datasets/melanoma_tme/runs/cellchat/results/provenance.json"
+    }
+  },
+  "active_run": "cellchat",
+  "results": {
+    "consensus": "datasets/melanoma_tme/runs/cellchat/results/consensus_candidate_complex_aware/consensus_cellchat.csv",
+    "tools": [
+      "CellChat"
+    ],
+    "created": "2026-10-16 12:53:45",
+    "cellchat": "datasets/melanoma_tme/runs/cellchat/results/cellchat/standardized_interactions.csv",
+    "cellchat_run_info": "datasets/melanoma_tme/runs/cellchat/results/cellchat/run_info.csv",
+    "run": "cellchat",
+    "provenance": "datasets/melanoma_tme/runs/cellchat/results/provenance.json"
+  },
+  "results_created": "2026-10-16 12:53:45",
+  "provenance": "datasets/melanoma_tme/runs/cellchat/results/provenance.json"
+}

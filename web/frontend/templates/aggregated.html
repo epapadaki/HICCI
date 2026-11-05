@@ -1,0 +1,548 @@
+{% extends "base.html" %}
+{% block title %}Curated results · HICCI{% endblock %}
+{% block head %}<script defer src="/static/js/common.js?v={{ v }}"></script><script defer src="/static/js/aggregated.js?v={{ v }}"></script>{% endblock %}
+
+{% block body %}
+<div class="app app-scroll" x-data="aggregatedApp()" x-init="init()" @keydown.escape.window="contextOpen = false">
+  {% include "_topbar.html" %}
+  <div class="page page-wide">
+    <div class="page-head">
+      <h1>Curated results</h1>
+      <p class="muted small">Summaries built on the interactions kept after expert review.</p>
+    </div>
+
+    <div class="section-grid">
+      <button type="button" class="section-tile" @click="openSection('network')">
+        <div class="st-thumb"><svg class="st-art" viewBox="0 0 200 130" aria-hidden="true">
+          <g fill="none" stroke="var(--layer-data)" stroke-width="2.4" stroke-opacity="0.5">
+            <path d="M100 24 Q 118 54 138 86"/><path d="M100 24 Q 82 54 62 86"/><path d="M138 44 Q 120 76 100 106"/>
+            <path d="M62 44 Q 100 65 138 86"/><path d="M62 86 Q 100 98 138 44"/><path d="M100 106 Q 80 76 62 44"/>
+          </g>
+          <g stroke="var(--text-strong)" stroke-width="2">
+            <circle cx="100" cy="24" r="9" fill="var(--accent)" stroke="none"/><circle cx="138" cy="44" r="9" fill="var(--bg-shell)"/>
+            <circle cx="138" cy="86" r="9" fill="var(--layer-data)" stroke="none"/><circle cx="100" cy="106" r="9" fill="var(--bg-shell)"/>
+            <circle cx="62" cy="86" r="9" fill="var(--accent)" stroke="none"/><circle cx="62" cy="44" r="9" fill="var(--bg-shell)"/>
+          </g></svg></div>
+        <div class="st-text"><span class="st-name">Curated network</span><span class="st-desc">Who signals to whom — network &amp; heatmap</span></div>
+      </button>
+      <button type="button" class="section-tile" @click="openSection('profiles')">
+        <div class="st-thumb"><svg class="st-art" viewBox="0 0 200 130" aria-hidden="true">
+          <rect x="28" y="20" width="62" height="8" rx="4" fill="var(--text-muted)" opacity="0.4"/>
+          <rect x="28" y="42" width="104" height="16" rx="8" fill="var(--accent)"/><rect x="136" y="42" width="40" height="16" rx="8" fill="var(--layer-data)"/>
+          <rect x="28" y="74" width="58" height="16" rx="8" fill="var(--accent)"/><rect x="90" y="74" width="86" height="16" rx="8" fill="var(--layer-data)"/>
+          <rect x="28" y="104" width="120" height="8" rx="4" fill="var(--text-muted)" opacity="0.25"/>
+        </svg></div>
+        <div class="st-text"><span class="st-name">Communication profiles</span><span class="st-desc">Each population's send / receive balance</span></div>
+      </button>
+      <button type="button" class="section-tile" @click="openSection('bio')">
+        <div class="st-thumb"><svg class="st-art" viewBox="0 0 200 130" aria-hidden="true">
+          <g fill="none" stroke-width="7" stroke-opacity="0.35">
+            <path stroke="var(--accent)" d="M35 47 C 66 47 66 36 97 36"/><path stroke="var(--accent)" d="M35 47 C 66 47 66 68 97 68"/>
+            <path stroke="var(--accent)" d="M35 87 C 66 87 66 68 97 68"/><path stroke="var(--accent)" d="M35 87 C 66 87 66 100 97 100"/>
+            <path stroke="var(--layer-data)" d="M103 36 C 134 36 134 47 165 47"/><path stroke="var(--layer-data)" d="M103 68 C 134 68 134 47 165 47"/>
+            <path stroke="var(--layer-data)" d="M103 100 C 134 100 134 87 165 87"/><path stroke="var(--layer-data)" d="M103 68 C 134 68 134 87 165 87"/>
+          </g>
+          <g><rect x="26" y="34" width="9" height="26" rx="2" fill="var(--accent)"/><rect x="26" y="74" width="9" height="26" rx="2" fill="var(--accent)"/>
+            <rect x="96" y="26" width="9" height="20" rx="2" fill="var(--text-muted)"/><rect x="96" y="58" width="9" height="20" rx="2" fill="var(--text-muted)"/><rect x="96" y="90" width="9" height="20" rx="2" fill="var(--text-muted)"/>
+            <rect x="165" y="34" width="9" height="26" rx="2" fill="var(--layer-data)"/><rect x="165" y="74" width="9" height="26" rx="2" fill="var(--layer-data)"/></g>
+        </svg></div>
+        <div class="st-text"><span class="st-name">Biological processes</span><span class="st-desc">Pathways: bar plot &amp; sender→process→receiver</span></div>
+      </button>
+      <button type="button" class="section-tile" @click="openSection('hubs')">
+        <div class="st-thumb"><svg class="st-art" viewBox="0 0 200 130" aria-hidden="true">
+          <g><rect x="24" y="30" width="74" height="15" rx="7.5" fill="var(--accent)"/><rect x="24" y="57" width="56" height="15" rx="7.5" fill="var(--accent)"/><rect x="24" y="84" width="38" height="15" rx="7.5" fill="var(--accent)"/>
+            <rect x="110" y="30" width="68" height="15" rx="7.5" fill="var(--layer-data)"/><rect x="110" y="57" width="50" height="15" rx="7.5" fill="var(--layer-data)"/><rect x="110" y="84" width="32" height="15" rx="7.5" fill="var(--layer-data)"/></g>
+        </svg></div>
+        <div class="st-text"><span class="st-name">Molecular hubs</span><span class="st-desc">Top ligands &amp; receptors by interactions</span></div>
+      </button>
+      <button type="button" class="section-tile" @click="openSection('impact')">
+        <div class="st-thumb"><svg class="st-art" viewBox="0 0 200 130" aria-hidden="true">
+          <g stroke="var(--layer-data)" stroke-width="3" opacity="0.5" fill="none">
+            <path d="M52 30 C110 30 90 40 148 40"/><path d="M52 30 C110 30 90 68 148 68"/>
+            <path d="M52 55 C110 55 90 40 148 40"/><path d="M52 55 C110 55 90 95 148 95"/>
+            <path d="M52 80 C110 80 90 68 148 68"/><path d="M52 80 C110 80 90 95 148 95"/>
+            <path d="M52 105 C110 105 90 95 148 95"/></g>
+          <g fill="var(--accent)"><rect x="44" y="24" width="8" height="12" rx="2"/><rect x="44" y="49" width="8" height="12" rx="2"/><rect x="44" y="74" width="8" height="12" rx="2"/><rect x="44" y="99" width="8" height="12" rx="2"/></g>
+          <g fill="var(--layer-data)"><rect x="148" y="34" width="8" height="12" rx="2"/><rect x="148" y="62" width="8" height="12" rx="2"/><rect x="148" y="89" width="8" height="12" rx="2"/></g>
+        </svg></div>
+        <div class="st-text"><span class="st-name">Ligand–receptor rewiring</span><span class="st-desc">Ligand → receptor axes, with &amp; without pathways</span></div>
+      </button>
+      <button type="button" class="section-tile" @click="openSection('evidence')">
+        <div class="st-thumb"><svg class="st-art" viewBox="0 0 200 130" aria-hidden="true">
+          <g fill="var(--accent)"><circle cx="55" cy="30" r="7"/><circle cx="95" cy="30" r="4"/><circle cx="135" cy="30" r="5.5"/>
+            <circle cx="55" cy="58" r="4"/><circle cx="95" cy="58" r="7"/><circle cx="135" cy="58" r="3"/></g>
+          <g fill="var(--layer-data)"><circle cx="55" cy="86" r="5.5"/><circle cx="95" cy="86" r="3"/><circle cx="135" cy="86" r="6.5"/>
+            <circle cx="55" cy="112" r="3"/><circle cx="95" cy="112" r="5"/><circle cx="135" cy="112" r="4"/></g>
+        </svg></div>
+        <div class="st-text"><span class="st-name">Ligand–receptor dot plot</span><span class="st-desc">Interactions by cell pair, sized by rank</span></div>
+      </button>
+    </div>
+
+    <div class="section-modal" x-show="modalOpen" x-cloak @keydown.escape.window="closeSection()">
+      <div class="section-modal-backdrop" @click="closeSection()"></div>
+      <div class="section-modal-panel" role="dialog" aria-modal="true">
+        <div class="section-modal-head">
+          <h2 x-text="sectionTitle()"></h2>
+          <button type="button" class="section-modal-x" @click="closeSection()" aria-label="Close">×</button>
+        </div>
+        <div class="section-modal-body">
+
+    <div x-show="section === 'network'">
+    <p class="muted small" style="margin:-4px 0 10px">Each arrow (or matrix cell) counts the kept ligand–receptor interactions from one population to another. Select one to list them.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px">
+      <span class="small muted" style="font-weight:600">Export for figure:</span>
+      <button type="button" class="btn" @click="exportSVG('nw-svg','network_curated')"><i class="ti ti-download"></i> Network (SVG + PNG)</button>
+    </div>
+
+    <div class="card nw-filters">
+      <div class="field">
+        <label for="a-cutoff">Kept: rank in tool ≥</label>
+        <input id="a-cutoff" class="input" type="number" min="0" max="100" step="1" style="width:72px" :value="cutoff" @change="setCutoff($event.target.value)">
+      </div>
+      <div class="field">
+        <span class="label">Cell populations</span>
+        <button class="btn" type="button" @click="typesOpen = !typesOpen" x-text="(f.types.length || (data ? data.all_cell_types.length : 0)) + ' of ' + (data ? data.all_cell_types.length : 0) + ' shown'"></button>
+      </div>
+      <div class="nw-summary small muted" x-show="data" x-text="data ? fmtInt(data.n_interactions) + ' kept interactions · ' + fmtInt(data.edges.length) + ' sender–receiver pairs · ' + data.n_populations + ' populations' : ''"></div>
+    </div>
+    <div class="card nw-types" x-show="typesOpen" x-cloak>
+      <div class="chips">
+        <template x-for="t in (data ? data.all_cell_types : [])" :key="t">
+          <button type="button" class="chip-toggle" :aria-pressed="isShown(t)" @click="toggleType(t)" x-text="t"></button>
+        </template>
+      </div>
+      <div class="ds-actions" style="margin-top:8px"><button class="toggle" type="button" @click="f.types = []; load()">Show all</button></div>
+    </div>
+
+    <!-- summary of the curated network -->
+    <template x-if="data && data.n_interactions === 0">
+      <div class="card" style="padding:16px"><p class="small muted">No interactions are kept with this cutoff. Lower the cutoff above, or keep more interactions on the Interactions page.</p></div>
+    </template>
+    <div class="agg-cards" x-show="data && data.n_interactions > 0" x-cloak>
+      <section class="card agg-card">
+        <h3>Most interactions overall</h3>
+        <ol class="agg-list"><template x-for="x in (data ? data.summary.most_total : [])" :key="'mt'+x.name">
+          <li><span class="agg-name" x-text="x.name"></span><span class="agg-val num" x-text="fmtInt(x.value)"></span></li></template></ol>
+      </section>
+      <section class="card agg-card">
+        <h3>Mainly senders</h3>
+        <ol class="agg-list"><template x-for="x in (data ? data.summary.top_senders : [])" :key="'ts'+x.name">
+          <li><span class="agg-name" x-text="x.name"></span><span class="agg-val num" x-text="fmtInt(x.value)"></span></li></template></ol>
+      </section>
+      <section class="card agg-card">
+        <h3>Mainly receivers</h3>
+        <ol class="agg-list"><template x-for="x in (data ? data.summary.top_receivers : [])" :key="'tr'+x.name">
+          <li><span class="agg-name" x-text="x.name"></span><span class="agg-val num" x-text="fmtInt(x.value)"></span></li></template></ol>
+      </section>
+      <section class="card agg-card">
+        <h3>Busiest population pairs</h3>
+        <ol class="agg-list"><template x-for="p in (data ? data.summary.top_pairs : [])" :key="'tp'+p.sender+'|'+p.receiver">
+          <li><span class="agg-name"><span x-text="p.sender"></span> <span class="arrow">→</span> <span x-text="p.receiver"></span></span><span class="agg-val num" x-text="fmtInt(p.count)"></span></li></template></ol>
+      </section>
+      <section class="card agg-card">
+        <h3>Strongest autocrine</h3>
+        <ol class="agg-list"><template x-for="x in (data ? data.summary.top_autocrine : [])" :key="'ta'+x.name">
+          <li><span class="agg-name" x-text="x.name"></span><span class="agg-val num" x-text="fmtInt(x.value)"></span></li></template></ol>
+        <p class="small faint" x-show="data && !data.summary.top_autocrine.length">No within-population (autocrine) interactions were kept.</p>
+      </section>
+    </div>
+
+    <div class="nw-main">
+      <section class="card">
+        <div class="tabs nw-tabs" role="tablist">
+          <button class="tab" role="tab" type="button" :aria-selected="view === 'network'" @click="view = 'network'; $nextTick(() => draw())">Network</button>
+          <button class="tab" role="tab" type="button" :aria-selected="view === 'matrix'" @click="view = 'matrix'">Matrix</button>
+        </div>
+        <div x-show="!data" style="padding: 20px"><div class="skeleton"></div><div class="skeleton" style="width:60%"></div></div>
+
+        <div x-show="data && view === 'network'">
+          <div class="nw-toolbar small">
+            <label for="n-max">Arrows shown</label>
+            <input id="n-max" type="range" min="10" max="300" step="10" x-model.number="maxEdges" @input="draw()">
+            <span class="num" x-text="Math.min(maxEdges, data ? data.edges.length : 0) + ' strongest of ' + (data ? data.edges.length : 0)"></span>
+            <span class="faint">Hover a population to highlight what it sends (orange) and receives (blue).</span>
+          </div>
+          <svg id="nw-svg" viewBox="0 0 760 720" role="img" aria-label="Curated network of kept interactions between cell populations"></svg>
+        </div>
+
+        <div x-show="data && view === 'matrix'" class="nw-matrix-wrap">
+          <table class="nw-matrix" x-show="data">
+            <thead>
+              <tr><th class="corner"><span>Sender ↓ / Receiver →</span></th>
+                <template x-for="r in shownTypes()" :key="'c' + r"><th class="col"><span x-text="r"></span></th></template></tr>
+            </thead>
+            <tbody>
+              <template x-for="s in shownTypes()" :key="'r' + s">
+                <tr><th class="row" x-text="s"></th>
+                  <template x-for="r in shownTypes()" :key="s + '|' + r">
+                    <td :style="cellStyle(s, r)" :class="sel && sel.sender === s && sel.receiver === r ? 'on' : ''"
+                        @click="count(s, r) && openPair(s, r)" :title="s + ' → ' + r + ': ' + count(s, r)" x-text="count(s, r) || ''"></td>
+                  </template>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <p class="small muted" style="padding: 0 16px 14px" x-show="data" x-text="data ? data.note : ''"></p>
+      </section>
+
+      <aside class="card nw-side">
+        <div x-show="!sel" class="small muted">Select an arrow or a matrix cell to list its kept interactions.</div>
+        <template x-if="sel">
+          <div>
+            <div class="cells-line"><b x-text="sel.sender"></b> to <b x-text="sel.receiver"></b></div>
+            <div class="small muted" style="margin-top:2px" x-text="pairData ? fmtInt(pairData.total) + ' kept interactions' + (pairData.total > pairData.rows.length ? ', first ' + pairData.rows.length + ' shown' : '') : 'Loading…'"></div>
+            <ul class="list" style="margin-top:10px">
+              <template x-for="r in (pairData ? pairData.rows : [])" :key="r.result_id">
+                <li class="nw-row">
+                  <div>
+                    <span class="lr-pair"><span x-text="r.ligand"></span><span class="arrow">→</span><span x-text="r.receptor"></span></span>
+                    <div class="meta">
+                      <span x-text="'reported by ' + r.method_count + '/' + nTools() + ' tools'"></span>
+                      <template x-for="(v, m) in (r.ranks || {})" :key="m"><span class="num" x-show="v !== null" x-text="m + ' ' + fmtPct(v)"></span></template>
+                    </div>
+                  </div>
+                  <a class="row-action" :href="'/interactions?selected=' + r.result_id" title="Open the biological documentation">Open</a>
+                </li>
+              </template>
+            </ul>
+          </div>
+        </template>
+      </aside>
+    </div>
+    </div><!-- /section: network -->
+
+    <div x-show="section === 'impact'" x-cloak>
+      <p class="muted small" style="margin:-4px 0 10px">The curated ligand–receptor axes, coloured by the receptor's Reactome pathway. Top: ligand → receptor. Bottom: the same axes extended to the receptor's Reactome pathways (ligand → receptor → pathway). Reactome annotation is method-independent, so this holds whichever CCC tool produced the predictions.</p>
+
+      <div class="card nw-filters">
+        <div class="field"><label for="i-cutoff">Kept: rank in tool ≥</label>
+          <input id="i-cutoff" class="input" type="number" min="0" max="100" step="1" style="width:72px" :value="cutoff" @change="setCutoff($event.target.value)"></div>
+        <div class="nw-summary small muted" x-show="impact" x-text="impact ? fmtInt(impact.n_interactions) + ' kept interactions · ' + impact.n_ligands + ' ligands → ' + impact.n_receptors + ' receptors · ' + impact.n_pathways + ' pathways' : ''"></div>
+      </div>
+
+      <div x-show="!impact" class="card" style="padding:16px"><div class="skeleton"></div><div class="skeleton" style="width:60%"></div></div>
+
+      <template x-if="impact">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <section class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">
+              <h3 class="impact-net-h" style="margin:0">Ligand → receptor</h3>
+              <button type="button" class="btn" style="white-space:nowrap;flex:none" @click="exportSVG('lr-bip','LR_bipartite')"><i class="ti ti-download"></i> SVG + PNG</button>
+            </div>
+            <svg id="lr-bip" viewBox="0 0 960 640" role="img" aria-label="Bipartite ligand to receptor graph of the curated set" style="width:100%;height:auto"></svg>
+          </section>
+          <section class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">
+              <h3 class="impact-net-h" style="margin:0">Ligand → receptor → Reactome pathway</h3>
+              <button type="button" class="btn" style="white-space:nowrap;flex:none" @click="exportSVG('lr-tri-re','LR_reactome_pathways')"><i class="ti ti-download"></i> SVG + PNG</button>
+            </div>
+            <svg id="lr-tri-re" viewBox="0 0 960 640" role="img" aria-label="Ligand receptor Reactome pathway graph" style="width:100%;height:auto"></svg>
+          </section>
+          <p class="small muted" x-text="impact.note"></p>
+        </div>
+      </template>
+    </div>
+
+    <div x-show="section === 'hubs'" x-cloak>
+      <p class="muted small" style="margin:-4px 0 10px">The ligands and receptors that take part in the most kept interactions — possible molecular hubs of the curated network.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px">
+        <span class="small muted" style="font-weight:600">Export for figure:</span>
+        <button type="button" class="btn" @click="exportHubs('molecular_hubs')"><i class="ti ti-download"></i> Hubs chart (SVG + PNG)</button>
+      </div>
+
+      <div class="card nw-filters">
+        <div class="field"><label for="h-cutoff">Kept: rank in tool ≥</label>
+          <input id="h-cutoff" class="input" type="number" min="0" max="100" step="1" style="width:72px" :value="cutoff" @change="setCutoff($event.target.value)"></div>
+      </div>
+
+      <div x-show="!hubs" class="card" style="padding:16px"><div class="skeleton"></div><div class="skeleton" style="width:60%"></div></div>
+
+      <template x-if="hubs">
+        <div>
+          <div class="hub-cols">
+            <section class="card hub-card">
+              <h3>Top ligands</h3>
+              <p class="small muted" x-show="!hubs.ligands.length">No kept interactions with this cutoff.</p>
+              <ul class="hub-list">
+                <template x-for="m in hubs.ligands" :key="'l'+m.name">
+                  <li>
+                    <button type="button" class="drill-trigger" :class="drill && drill.scope==='hubs' && drill.title==='Ligand '+m.name ? 'on' : ''" @click="hubDrill('ligand', m.name)">
+                      <div class="hub-row"><span class="hub-name" x-text="m.name"></span><span class="hub-count num" x-text="fmtInt(m.interactions)"></span></div>
+                      <div class="hub-bar"><i :style="'width:' + hubBar(m.interactions, hubs.max_ligand)"></i></div>
+                      <div class="hub-meta small faint" x-text="m.populations + ' populations · ' + m.senders + ' senders → ' + m.receivers + ' receivers'"></div>
+                    </button>
+                  </li>
+                </template>
+              </ul>
+            </section>
+            <section class="card hub-card">
+              <h3>Top receptors</h3>
+              <p class="small muted" x-show="!hubs.receptors.length">No kept interactions with this cutoff.</p>
+              <ul class="hub-list">
+                <template x-for="m in hubs.receptors" :key="'r'+m.name">
+                  <li>
+                    <button type="button" class="drill-trigger" :class="drill && drill.scope==='hubs' && drill.title==='Receptor '+m.name ? 'on' : ''" @click="hubDrill('receptor', m.name)">
+                      <div class="hub-row"><span class="hub-name" x-text="m.name"></span><span class="hub-count num" x-text="fmtInt(m.interactions)"></span></div>
+                      <div class="hub-bar rec"><i :style="'width:' + hubBar(m.interactions, hubs.max_receptor)"></i></div>
+                      <div class="hub-meta small faint" x-text="m.populations + ' populations · reaches ' + m.receivers + ' receivers from ' + m.senders + ' senders'"></div>
+                    </button>
+                  </li>
+                </template>
+              </ul>
+            </section>
+          </div>
+          <section class="card drill-card" x-show="drill && drill.scope === 'hubs'" x-cloak>
+            <div class="drill-head"><h3 x-text="drill ? drill.title : ''"></h3><button type="button" class="drill-x" @click="closeDrill()" aria-label="Close">×</button></div>
+            <div class="small muted" x-text="drill ? fmtInt(drill.total) + ' kept interactions' + (drill.total > (drill.rows ? drill.rows.length : 0) ? ', first ' + drill.rows.length + ' shown' : '') : ''"></div>
+            <div class="chips sm" style="margin:10px 0" x-show="drill && drill.pairs && drill.pairs.length">
+              <template x-for="pr in (drill ? drill.pairs : [])" :key="'dp'+pr.sender+'|'+pr.receiver">
+                <span class="chip-stat"><span x-text="pr.sender"></span><span class="arrow">→</span><span x-text="pr.receiver"></span> <b class="num" x-text="fmtInt(pr.count)"></b></span>
+              </template>
+            </div>
+            <ul class="list" style="margin-top:6px">
+              <template x-for="r in (drill ? drill.rows : [])" :key="'dr'+r.result_id">
+                <li class="nw-row">
+                  <div><span class="lr-pair"><span x-text="r.ligand"></span><span class="arrow">→</span><span x-text="r.receptor"></span></span>
+                    <div class="meta"><span x-text="r.sender + ' → ' + r.receiver"></span><span x-text="'· ' + r.method_count + '/' + nTools() + ' tools'"></span></div></div>
+                  <a class="row-action" :href="'/interactions?selected=' + r.result_id" title="Open the biological documentation">Open</a>
+                </li>
+              </template>
+            </ul>
+          </section>
+          <p class="small muted" x-text="hubs.note"></p>
+        </div>
+      </template>
+    </div>
+
+    <div x-show="section === 'profiles'" x-cloak>
+      <p class="muted small" style="margin:-4px 0 10px">A communication profile for each cell population, built from the kept set: how much it sends versus receives, its main partners, and the ligands and receptors it uses most.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px">
+        <span class="small muted" style="font-weight:600">Export for figure:</span>
+        <button type="button" class="btn" @click="exportProfiles('communication_profiles')"><i class="ti ti-download"></i> Profiles chart (SVG + PNG)</button>
+      </div>
+
+      <div class="card nw-filters">
+        <div class="field"><label for="p-cutoff">Kept: rank in tool ≥</label>
+          <input id="p-cutoff" class="input" type="number" min="0" max="100" step="1" style="width:72px" :value="cutoff" @change="setCutoff($event.target.value)"></div>
+        <div class="nw-summary small muted" x-show="profiles" x-text="profiles ? profiles.profiles.length + ' populations with kept interactions' : ''"></div>
+      </div>
+
+      <div x-show="!profiles" class="card" style="padding:16px"><div class="skeleton"></div><div class="skeleton" style="width:60%"></div></div>
+
+      <template x-if="profiles">
+        <div>
+          <div class="card" x-show="!profiles.profiles.length" style="padding:16px"><p class="small muted" style="margin:0">No interactions are kept with this cutoff. Lower it above, or keep more interactions on the Interactions page.</p></div>
+          <div class="profile-grid">
+            <template x-for="p in profiles.profiles" :key="'pf'+p.name">
+              <section class="card profile-card">
+                <div class="profile-head">
+                  <h3 x-text="p.name"></h3>
+                  <span class="profile-total num" x-text="fmtInt(p.total) + ' CCIs'"></span>
+                </div>
+
+                <div class="balance">
+                  <div class="balance-bar">
+                    <span class="bal-out" :style="'width:' + sendPct(p) + '%'"></span>
+                    <span class="bal-in" :style="'width:' + (100 - sendPct(p)) + '%'"></span>
+                  </div>
+                  <div class="balance-legend small">
+                    <span><i class="sw out"></i> Sends <b class="num" x-text="fmtInt(p.outgoing)"></b></span>
+                    <span><i class="sw in"></i> Receives <b class="num" x-text="fmtInt(p.incoming)"></b></span>
+                  </div>
+                </div>
+
+                <div class="profile-row" x-show="p.partners.length">
+                  <span class="profile-lbl small faint">Main partners</span>
+                  <div class="chips sm">
+                    <template x-for="q in p.partners" :key="'pp'+p.name+q.name">
+                      <span class="chip-stat" :title="fmtInt(q.count) + ' kept interactions'"><span x-text="q.name"></span> <b class="num" x-text="fmtInt(q.count)"></b></span>
+                    </template>
+                  </div>
+                </div>
+
+                <div class="profile-mols">
+                  <div class="profile-row">
+                    <span class="profile-lbl small faint">Most frequent ligands <span class="faint">(as sender)</span></span>
+                    <ul class="mol-list">
+                      <template x-for="m in p.top_ligands" :key="'pl'+p.name+m.name">
+                        <li><span class="mol-name" x-text="m.name"></span><span class="mol-c num" x-text="fmtInt(m.count)"></span></li>
+                      </template>
+                      <li x-show="!p.top_ligands.length" class="faint small">–</li>
+                    </ul>
+                  </div>
+                  <div class="profile-row">
+                    <span class="profile-lbl small faint">Most frequent receptors <span class="faint">(as receiver)</span></span>
+                    <ul class="mol-list">
+                      <template x-for="m in p.top_receptors" :key="'pr'+p.name+m.name">
+                        <li><span class="mol-name" x-text="m.name"></span><span class="mol-c num" x-text="fmtInt(m.count)"></span></li>
+                      </template>
+                      <li x-show="!p.top_receptors.length" class="faint small">–</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="profile-foot">
+                  <span class="small faint" x-show="p.autocrine > 0" x-text="fmtInt(p.autocrine) + ' autocrine'"></span>
+                  <button type="button" class="drill-link" :class="drill && drill.scope==='profiles' && drill.title===p.name ? 'on' : ''" @click="profileDrill(p.name)">See interactions →</button>
+                </div>
+              </section>
+            </template>
+          </div>
+          <section class="card drill-card" x-show="drill && drill.scope === 'profiles'" x-cloak>
+            <div class="drill-head"><h3><span x-text="drill ? drill.title : ''"></span> <span class="small faint">— kept interactions</span></h3><button type="button" class="drill-x" @click="closeDrill()" aria-label="Close">×</button></div>
+            <div class="drill-two">
+              <div>
+                <div class="drill-sub"><span class="sw out"></span> Sends <b class="num" x-text="drill && drill.outgoing ? fmtInt(drill.outgoing.total) : 0"></b></div>
+                <ul class="list">
+                  <template x-for="r in (drill && drill.outgoing ? drill.outgoing.rows : [])" :key="'do'+r.result_id">
+                    <li class="nw-row"><div><span class="lr-pair"><span x-text="r.ligand"></span><span class="arrow">→</span><span x-text="r.receptor"></span></span>
+                      <div class="meta"><span x-text="'to ' + r.receiver"></span><span x-text="'· ' + r.method_count + '/' + nTools() + ' tools'"></span></div></div>
+                      <a class="row-action" :href="'/interactions?selected=' + r.result_id">Open</a></li>
+                  </template>
+                  <li x-show="drill && drill.outgoing && !drill.outgoing.rows.length" class="small faint">None.</li>
+                </ul>
+              </div>
+              <div>
+                <div class="drill-sub"><span class="sw in"></span> Receives <b class="num" x-text="drill && drill.incoming ? fmtInt(drill.incoming.total) : 0"></b></div>
+                <ul class="list">
+                  <template x-for="r in (drill && drill.incoming ? drill.incoming.rows : [])" :key="'di'+r.result_id">
+                    <li class="nw-row"><div><span class="lr-pair"><span x-text="r.ligand"></span><span class="arrow">→</span><span x-text="r.receptor"></span></span>
+                      <div class="meta"><span x-text="'from ' + r.sender"></span><span x-text="'· ' + r.method_count + '/' + nTools() + ' tools'"></span></div></div>
+                      <a class="row-action" :href="'/interactions?selected=' + r.result_id">Open</a></li>
+                  </template>
+                  <li x-show="drill && drill.incoming && !drill.incoming.rows.length" class="small faint">None.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+          <p class="small muted" x-text="profiles.note"></p>
+        </div>
+      </template>
+    </div>
+
+    <div x-show="section === 'bio'" x-cloak>
+      <p class="muted small" style="margin:-4px 0 10px">Kept interactions grouped by the <b>Reactome pathway</b> their receptor participates in. Reactome is a method-independent annotation, so this view is the same whichever CCC tool produced the predictions. An annotation is not evidence that the pathway is active in your data.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px">
+        <span class="small muted" style="font-weight:600">Export for figure:</span>
+        <button type="button" class="btn" @click="exportProc('processes_bars')"><i class="ti ti-download"></i> Processes bars (SVG + PNG)</button>
+        <button type="button" class="btn" @click="exportSVG('bio-sankey','processes_sankey')"><i class="ti ti-download"></i> Sankey (SVG + PNG)</button>
+      </div>
+
+      <div class="card nw-filters">
+        <div class="field"><label for="b-cutoff">Kept: rank in tool ≥</label>
+          <input id="b-cutoff" class="input" type="number" min="0" max="100" step="1" style="width:72px" :value="cutoff" @change="setCutoff($event.target.value)"></div>
+      </div>
+
+      <div x-show="!bio" class="card" style="padding:16px"><div class="skeleton"></div><div class="skeleton" style="width:60%"></div></div>
+
+      <template x-if="bio">
+        <div>
+          <!-- coverage -->
+          <div class="card bio-coverage" x-show="bioCur()">
+            <div class="cov-bar"><i :style="'width:' + pctLabeled() + '%'"></i></div>
+            <div class="small muted">
+              <b class="num" x-text="fmtInt(bioCur().labeled)"></b> of <b class="num" x-text="fmtInt(bioCur().total_kept)"></b> kept interactions carry a
+              Reactome annotation
+              (<span x-text="pctLabeled()"></span>%) across <b class="num" x-text="fmtInt(bioCur().n_processes)"></b>
+              pathways.
+              <b class="num" x-text="fmtInt(bioCur().unlabeled)"></b> are unlabelled.
+            </div>
+          </div>
+
+          <div class="card" style="padding:16px" x-show="bioCur() && !bioCur().processes.length">
+            <p class="small muted" style="margin:0">No kept interactions carry a Reactome annotation with this cutoff.</p>
+          </div>
+
+          <div class="bio-main" x-show="bioCur() && bioCur().processes.length">
+            <!-- ranked bar list -->
+            <section class="card bio-list-card">
+              <h3>Processes by kept interactions</h3>
+              <ul class="hub-list bio-list">
+                <template x-for="p in bioCur().processes" :key="'bp'+p.name">
+                  <li>
+                    <button type="button" class="bio-proc" :class="bioSel === p.name ? 'on' : ''" @click="selectProcess(p.name)">
+                      <div class="hub-row"><span class="hub-name" x-text="p.name"></span><span class="hub-count num" x-text="fmtInt(p.ccis)"></span></div>
+                      <div class="hub-bar"><i :style="'width:' + procBar(p.ccis, bioCur().max)"></i></div>
+                      <div class="hub-meta small faint" x-text="p.populations + ' populations · ' + p.senders + ' senders → ' + p.receivers + ' receivers'"></div>
+                    </button>
+                  </li>
+                </template>
+              </ul>
+              <p class="small muted" x-text="bioCur().note"></p>
+            </section>
+
+            <!-- drill-down -->
+            <aside class="card bio-detail">
+              <div x-show="!bioSel" class="small muted">Select a process to see which cell populations and interactions make it up.</div>
+              <template x-if="bioSel">
+                <div>
+                  <div class="cells-line"><b x-text="bioSel"></b></div>
+                  <div class="small muted" style="margin-top:2px" x-text="bioDetail ? fmtInt(bioDetail.total) + ' kept interactions' + (bioDetail.total > bioDetail.rows.length ? ', first ' + bioDetail.rows.length + ' shown' : '') : 'Loading…'"></div>
+                  <template x-if="bioDetail">
+                    <div>
+                      <div class="chips sm" style="margin:10px 0" x-show="bioDetail.pairs.length">
+                        <template x-for="pr in bioDetail.pairs" :key="'pp'+pr.sender+'|'+pr.receiver">
+                          <span class="chip-stat" :title="fmtInt(pr.count) + ' interactions'"><span x-text="pr.sender"></span><span class="arrow">→</span><span x-text="pr.receiver"></span> <b class="num" x-text="fmtInt(pr.count)"></b></span>
+                        </template>
+                      </div>
+                      <ul class="list" style="margin-top:6px">
+                        <template x-for="r in bioDetail.rows" :key="r.result_id">
+                          <li class="nw-row">
+                            <div>
+                              <span class="lr-pair"><span x-text="r.ligand"></span><span class="arrow">→</span><span x-text="r.receptor"></span></span>
+                              <div class="meta"><span x-text="r.sender + ' → ' + r.receiver"></span><span x-text="'· ' + r.method_count + '/' + nTools() + ' tools'"></span></div>
+                            </div>
+                            <a class="row-action" :href="'/interactions?selected=' + r.result_id" title="Open the biological documentation">Open</a>
+                          </li>
+                        </template>
+                      </ul>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </aside>
+          </div>
+
+          <!-- sankey -->
+          <section class="card bio-sankey-card" x-show="bioCur() && bioCur().processes.length">
+            <h3>Sender <span class="arrow">→</span> process <span class="arrow">→</span> receiver</h3>
+            <p class="small faint" style="margin:-2px 0 6px">Flow of kept interactions through the top processes. Band width = number of kept interactions. Click a process label to drill in.</p>
+            <svg id="bio-sankey" viewBox="0 0 820 360" role="img" aria-label="Sankey of kept interactions from senders through processes to receivers"></svg>
+          </section>
+        </div>
+      </template>
+    </div>
+
+    <div x-show="section === 'evidence'" x-cloak>
+      <p class="muted small" style="margin:-4px 0 10px">Every kept ligand–receptor interaction as a dot, from one cell population to another. Dot size scales with the within-tool rank; colour marks the receptor, so the view is the same whichever CCC tool produced the predictions.</p>
+
+      <div class="card nw-filters">
+        <div class="field"><label for="e-cutoff">Kept: rank in tool ≥</label>
+          <input id="e-cutoff" class="input" type="number" min="0" max="100" step="1" style="width:72px" :value="cutoff" @change="setCutoff($event.target.value)"></div>
+        <div class="nw-summary small muted" x-show="evid" x-text="evid ? fmtInt(evid.n) + ' kept interactions · ' + (evid.lr_order ? evid.lr_order.length : 0) + ' pairs × ' + (evid.cp_order ? evid.cp_order.length : 0) + ' cell pairs' : ''"></div>
+      </div>
+
+      <div x-show="!evid" class="card" style="padding:16px"><div class="skeleton"></div><div class="skeleton" style="width:60%"></div></div>
+
+      <template x-if="evid">
+        <section class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">
+            <h3 class="impact-net-h" style="margin:0">Ligand–receptor dot plot</h3>
+            <button type="button" class="btn" style="white-space:nowrap;flex:none" @click="exportSVG('lr-dot','LR_dotplot')"><i class="ti ti-download"></i> SVG + PNG</button>
+          </div>
+          <div style="overflow-x:auto">
+            <svg id="lr-dot" role="img" aria-label="Ligand-receptor dot plot of the curated set" style="min-width:100%"></svg>
+          </div>
+          <p class="small muted" x-text="evid.note"></p>
+        </section>
+      </template>
+    </div>
+
+        </div><!-- /section-modal-body -->
+      </div><!-- /section-modal-panel -->
+    </div><!-- /section-modal -->
+  </div>
+  {% include "_context_modal.html" %}
+</div>
+{% endblock %}
