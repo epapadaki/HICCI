@@ -1,57 +1,143 @@
-# CCC Platform
+# HICCI — Human-In-the-loop Curation of Cellular Interactions
 
-Cell–cell communication (CCC) analysis of single-cell RNA-seq data, with
-biological documentation of every candidate interaction and expert review
-(Human in the Loop).
+HICCI is a web platform for the expert curation of cell–cell interactions
+predicted from single-cell RNA-seq data. It runs an established inference
+method chosen by the user, ranks the candidate interactions within each method
+on a percentile scale and pre-selects those above a user-defined cutoff. The
+expert then reviews each candidate against separate lines of evidence, keeps,
+removes or rescues it, and every decision is recorded. Network, pathway and
+enrichment analyses are recomputed on the curated set after each decision.
 
-The platform runs **CellPhoneDB**, **NATMI** and **CellChat**, each with its own
-criteria, and shows which ligand–receptor interactions each tool reports. For
-any interaction it documents the known biology of the ligand and receptor
-(UniProt, Reactome, SIGNOR), the literature on the pair (PubMed), how close
-that literature is to the user's experiment, and the expression of the partners
-in the user's own data. Experts record their assessment of each interaction.
+## Main features
 
-## Install (once)
+- **Inference methods:** CellPhoneDB v5, NATMI, CellChat v2, SingleCellSignalR (v1) and
+  ICELLNET, run with their own databases and reporting criteria. One method is
+  enough; several can be run on the same dataset.
+- **Complex-aware interactions:** multi-subunit ligands and receptors are kept
+  as complexes, and an interaction is defined by sender, receiver, ligand
+  entity and receptor entity.
+- **Within-method percentile ranking** and a default set defined by a cutoff
+  chosen by the user.
+- **Five separate lines of evidence for every candidate**, never merged into a
+  single score:
+  - prior knowledge (UniProt, Reactome, SIGNOR, CellChatDB);
+  - literature support (PubMed);
+  - relevance of the literature to the study;
+  - expression in the user's data;
+  - signalling response in the receiver (PROGENy, CollecTRI).
+- **Decision record:** every keep, remove or rescue decision is stored and can
+  be exported.
+- **Downstream analyses on the curated set:**
+  - curated network;
+  - communication profiles;
+  - Reactome processes;
+  - molecular hubs;
+  - ligand–receptor graphs;
+  - functional enrichment.
+- **Optional AI-assisted components (Google Gemini):**
+  - method advisor;
+  - literature classification;
+  - Discussion draft.
 
-Everything (web app, Python, R, CellPhoneDB, NATMI, CellChat) is installed into
-one conda environment, `ccc-platform`.
+  They support the expert but take no part in the curation decisions. Without
+  an API key, the platform uses its rule-based behaviour.
 
-* **Windows:** in PowerShell, from this folder:
-  `wsl --cd "<this folder>" bash ./install.sh`
-  (installs inside WSL/Ubuntu; WSL is included in Windows 10/11 — if missing,
-  run `wsl --install` as administrator and restart).
-* **Linux / macOS:** `./install.sh`
+## Installation
 
-The first installation takes about 15–40 minutes (packages are downloaded and
-CellChat is compiled). Conda (Miniforge) is installed automatically if absent.
+HICCI runs on Linux, macOS and Windows (through WSL for the R-based methods).
+All components are installed in one conda environment.
+
+1. Install [Miniforge](https://github.com/conda-forge/miniforge) (conda).
+2. Clone the repository and create the environment:
+
+   ```bash
+   git clone https://github.com/epapadaki/HICCI.git
+   cd HICCI
+   conda env create -f install/environment.yml
+   conda activate ccc-platform
+   ```
+
+3. Install the R packages that conda cannot provide (CellChat, NMF, presto, ICELLNET):
+
+   ```bash
+   Rscript install/install_r_packages.R
+   Rscript install/install_icellnet.R
+   ```
+
+4. Install NATMI (only needed if NATMI is used):
+
+   ```bash
+   git clone https://github.com/forrest-lab/NATMI.git external/NATMI
+   ```
+
+The CellPhoneDB database (v5.0.0) is downloaded automatically on the first
+CellPhoneDB run. The first installation takes about 15–40 minutes, mainly
+because CellChat is compiled.
+
+### Optional settings
+
+Copy `.env.example` to `.env` and fill in the values you need. The `.env` file
+is ignored by git and is never published.
+
+| Variable | Purpose |
+|---|---|
+| `GEMINI_API_KEY` | Enables the AI-assisted components |
+| `GEMINI_MODEL` | Gemini model (default: `gemini-2.5-flash`) |
+| `NCBI_EMAIL`, `NCBI_API_KEY` | Recommended by NCBI for PubMed queries |
 
 ## Start
 
-* **Windows:** `wsl --cd "<this folder>" bash ./start.sh`
-* **Linux / macOS:** `./start.sh`
+```bash
+conda activate ccc-platform
+python web/run.py
+```
 
-Then open http://127.0.0.1:8000. Stop with Ctrl+C.
+Then open <http://127.0.0.1:8000> in a browser. Stop with Ctrl+C.
 
-## Pages
+On Windows, `start.bat` or `start-ccc.ps1` starts the web interface from a
+local Python environment (`.venv`).
 
-| Page | What it is for |
+## Workflow
+
+| Page | Purpose |
 |---|---|
-| Datasets | Add a dataset (.h5ad), check it, run the CCI methods, see the analysis record |
-| Interactions | All predictions, each tool with its own score and rank; biological documentation and expert assessment of any interaction |
-| Network | Communication between cell populations (network and matrix views) |
-| Receptors | Receptors that recur in a chosen set of interactions, with their ligands and populations |
-| Review queue | Interactions grouped by which tools report them, and assessments that need a second look |
-| Methods | Which interactions each tool reports, and their overlap |
+| Datasets | Upload an annotated `.h5ad` file, select the cell-type column, check the data and describe the experiment |
+| Tools | Choose and run the inference method(s), with the method advisor |
+| Interactions | Ranked candidates, the evidence for each one, and the keep / remove / rescue decisions |
+| Curated results | Network, communication profiles, processes, hubs and ligand–receptor views of the curated set |
+| Functional enrichment | Over-representation analysis of the curated ligand and receptor genes |
+| Discussion | AI-generated draft Discussion of the curated results (optional) |
 
-## Example dataset
+## Example dataset (melanoma)
 
-`datasets/endometrium_example/` describes the endometrium use case (the
-CellPhoneDB example data). Put `endometrium_example_counts.h5ad` and
-`endometrium_example_meta.tsv` in `data/cellphonedb/` to use it.
+The case study of the paper uses the melanoma tumour microenvironment dataset
+of Tirosh et al. (2016, GEO GSE72056; 4,139 cells, 7 populations).
 
-## Web interface only
+1. Download the prepared file `melanoma_tme.h5ad` from Zenodo:
+   **DOI: ZENODO-DOI**
+2. Place it at `data/uploads/melanoma_tme.h5ad`.
+3. Start the platform, select the dataset on the Datasets page and run CellChat
+   from the Tools page (about 40 minutes).
 
-To browse existing results without the analysis environment:
-`pip install -r requirements.txt` and `python web/run.py`.
+## Repository structure
 
-More detail on the code: `web/README.md`.
+```
+web/        web application (FastAPI back end, HTML/Alpine.js front end, tools)
+utils/      scientific modules (knowledge bases, literature, Gemini client)
+scripts/    input preparation, method runners and output standardisation
+database/   storage of expert decisions (SQLite)
+data/       local snapshots of the knowledge bases and gene-set libraries
+datasets/   dataset descriptions (results are written here at run time)
+install/    conda environment and R installation scripts
+```
+
+## Citation
+
+If you use HICCI, please cite:
+
+> Papadaki E., Vrahatis A.G. HICCI: a human-in-the-loop platform for the expert
+> curation of predicted cell–cell interactions. (submitted)
+
+## License
+
+MIT License — see [LICENSE](LICENSE).

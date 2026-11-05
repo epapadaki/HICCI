@@ -1,8 +1,8 @@
-# CCC Platform: one environment with everything the platform runs.
+# HICCI: one environment with everything the platform runs.
 #   web app ....... Python (FastAPI)
 #   datasets ...... anndata / scanpy
 #   CellPhoneDB ... Python (pip, below)
-#   NATMI ......... Python (bundled in external/NATMI)
+#   NATMI ......... Python (clone github.com/forrest-lab/NATMI into external/NATMI)
 #   CellChat ...... R 4.4 + CellChat (installed from GitHub by install/install_r_packages.R)
 #   SingleCellSignalR  R/Bioconductor 1.18 (conda, below)
 #

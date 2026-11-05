@@ -1,4 +1,4 @@
-# CCC Platform — web application
+# HICCI — web application
 
 FastAPI back end (`backend/`), HTML pages with Alpine.js and plain CSS
 (`frontend/`), and command-line tools (`tools/`). The scientific modules in
