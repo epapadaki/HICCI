@@ -68,7 +68,12 @@ All components are installed in one conda environment.
 
    ```bash
    git clone https://github.com/forrest-lab/NATMI.git external/NATMI
+   git -C external/NATMI checkout c7ad5a9
    ```
+
+   NATMI is used unmodified. Its last version (2021) calls a pandas function
+   that pandas 2 removed; HICCI handles this automatically when it runs NATMI
+   (`web/tools/natmi_compat`), so no manual change is needed.
 
 The CellPhoneDB database (v5.0.0) is downloaded automatically on the first
 CellPhoneDB run. The first installation takes about 15–40 minutes, mainly

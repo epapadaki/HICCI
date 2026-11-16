@@ -44,6 +44,7 @@ import rlauncher  # noqa: E402
 import pylauncher  # noqa: E402
 SCRIPTS = PROJECT_ROOT / "scripts"
 NATMI = PROJECT_ROOT / "external" / "NATMI" / "ExtractEdges.py"
+NATMI_COMPAT = Path(__file__).resolve().parent / "natmi_compat"   # pandas-2 shim, see its docstring
 SHARED_CPDB_DB = PROJECT_ROOT / "data" / "cellphonedb" / "database" / "v5.0.0"
 CELLCHAT_SNAPSHOT = PROJECT_ROOT / "data" / "biological_context" / "cellchat"
 STEP_MARK = "@@STEP@@ "
@@ -168,10 +169,11 @@ def fail(message: str) -> None:
     sys.exit(1)
 
 
-def run(cmd: list[str], cwd: Path, what: str) -> None:
+def run(cmd: list[str], cwd: Path, what: str, extra_path: list[Path] | None = None) -> None:
     env = dict(os.environ)
     # Scripts import the platform's utils package from the real project folder.
-    env["PYTHONPATH"] = str(PROJECT_ROOT) + os.pathsep + env.get("PYTHONPATH", "")
+    paths = [str(p) for p in (extra_path or [])] + [str(PROJECT_ROOT)]
+    env["PYTHONPATH"] = os.pathsep.join(paths) + os.pathsep + env.get("PYTHONPATH", "")
     env["PYTHONUNBUFFERED"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
@@ -316,9 +318,10 @@ def main(argv: list[str] | None = None) -> None:
              "--emFile", str(natmi_in / "endometrium_expression.csv"),
              "--annFile", str(natmi_in / "endometrium_annotations.csv"),
              "--coreNum", str(a.cores), "--out", str(run_dir / "results" / "natmi")],
-            NATMI.parent, "NATMI")
+            NATMI.parent, "NATMI", extra_path=[NATMI_COMPAT])
         PROV["parameters"]["natmi"] = {"interaction_db": "lrc2p", "species": "human", "cores": a.cores,
-                                       "note": "bundled NATMI, see external/NATMI/PATCHES_CCC_PLATFORM.md"}
+                                       "note": "upstream NATMI run unmodified; web/tools/natmi_compat "
+                                               "restores ExcelWriter.save() for pandas >= 2"}
         nxt("NATMI: standardising");             run([py, str(sc / "standardize_natmi.py")], run_dir, "NATMI standardisation")
 
     if R_TOOLS & set(tools):
