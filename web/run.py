@@ -5,6 +5,7 @@ Start the CCC Platform web app.
     python run.py                # from inside web/
 
 Then open http://127.0.0.1:8000
+On a server: HOST=0.0.0.0 python web/run.py
 """
 
 import os
@@ -18,11 +19,12 @@ sys.path.insert(0, str(WEB_ROOT))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8000"))
+    host = os.environ.get("HOST", "127.0.0.1")
     reload = os.environ.get("CCC_RELOAD", "0") == "1"
-    print(f"\n  CCC Platform → http://127.0.0.1:{port}\n")
+    print(f"\n  CCC Platform → http://{host}:{port}\n")
     uvicorn.run(
         "backend.main:app",
-        host="127.0.0.1",
+        host=host,
         port=port,
         reload=reload,
         reload_dirs=[str(WEB_ROOT)] if reload else None,
