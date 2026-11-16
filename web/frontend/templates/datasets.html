@@ -220,8 +220,9 @@
           </div>
         </template>
         <div class="ex-actions">
-          <button class="btn primary" type="button" @click="runAnalysisFor('melanoma_tme')" x-show="exampleDataset()"><i class="ti ti-player-play"></i> Run the analysis</button>
+          <button class="btn primary" type="button" @click="runAnalysisFor('melanoma_tme')" x-show="exampleDataset()" :disabled="!!preparingId"><i class="ti" :class="preparingId ? 'ti-loader-2' : 'ti-player-play'"></i> <span x-text="preparingId ? 'Preparing…' : 'Run the analysis'"></span></button>
           <button class="btn" type="button" @click="openExample()" x-show="exampleDataset() && exampleDataset().has_results">Explore existing results</button>
+          <p class="small" x-show="prepMsg.text" :class="prepMsg.error ? 'err' : 'muted'" x-text="prepMsg.text"></p>
           <p class="small muted" x-show="!exampleDataset()">The example dataset is not installed. Place the prepared <span class="mono">melanoma_tme</span> dataset folder in <span class="mono">datasets/</span>.</p>
         </div>
       </section>

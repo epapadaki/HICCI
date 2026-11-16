@@ -19,6 +19,7 @@ function datasetsApp() {
     h5adName: "", h5adSize: null, metaName: "", dragOver: false, dragOverMeta: false, uploading: false, upPct: 0,
     toolList: ["CellPhoneDB", "NATMI", "CellChat", "SingleCellSignalR", "ICELLNET"], runTools: [],
     advice: {}, runMode: "single", singleTool: "", rec: null,
+    preparingId: null, prepMsg: { text: "", error: false },
     TOOL_INFO: [
       { name: "CellPhoneDB", icon: "ti-phone-call", logo: "/static/img/tools/cellphonedb.png", tagline: "Curated database with multi-subunit complexes; fast.", features: ["Complexes", "Mean expression"],
         what: "Scores ligand–receptor pairs against the curated CellPhoneDB v5 database, which models multi-subunit complexes, and tests them by permuting cell-type labels.",
@@ -157,9 +158,43 @@ function datasetsApp() {
       } catch (e) { alert(e.message); }
     },
     async runAnalysisFor(id) {
+      // A dataset that ships without its expression matrix (e.g. the example,
+      // freshly cloned) is prepared first, so the run page is never a dead end.
+      const d = (this.list || []).find(x => x.id === id);
+      if (d && !d.has_expression && !(await this.prepareFromSource(id))) return;
       try { await getJSON("/api/datasets/active", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }); }
       catch (e) { /* navigate anyway; the run page shows a prompt if nothing loaded */ }
       location.href = "/run";
+    },
+    async prepareFromSource(id) {
+      if (this.preparingId) return false;
+      this.preparingId = id;
+      this.prepMsg = { text: "Preparing the expression matrix (about 1–2 minutes)…", error: false };
+      try {
+        const info = await getJSON(`/api/datasets/${encodeURIComponent(id)}`);
+        const src = info.source || {};
+        const h5ad = src.counts || src.h5ad;
+        if (!h5ad) throw new Error("This dataset has no source .h5ad file recorded in its dataset.json.");
+        let job = await getJSON("/api/datasets", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, label: info.label || id, h5ad, cell_type_column: info.cell_type_column,
+                                 sample_column: info.sample_column || "", group_column: info.group_column || "",
+                                 replace: true }),
+        });
+        while (job && job.state === "running") {
+          await new Promise(r => setTimeout(r, 1500));
+          job = await getJSON(`/api/jobs/${job.id}`);
+        }
+        if (!job || job.state !== "done") throw new Error((job && job.error) || "Preparing the expression matrix failed.");
+        await this.loadList();
+        this.prepMsg = { text: "", error: false };
+        return true;
+      } catch (e) {
+        this.prepMsg = { text: e.message + (String(e.message).includes(".h5ad") ? "" : " (Is the .h5ad file in data/uploads/? See the README.)"), error: true };
+        return false;
+      } finally {
+        this.preparingId = null;
+      }
     },
     async openExample() {
       if (this.datasetsInfo.active !== "melanoma_tme") await this.switchDataset("melanoma_tme");
