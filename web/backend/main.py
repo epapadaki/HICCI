@@ -54,8 +54,15 @@ async def lifespan(_app: FastAPI):
             init_database()
             wipe_all_feedback()
             uploads = config.PROJECT_ROOT / "data" / "uploads"
+            keep = {"melanoma_tme.h5ad"}  # the shipped use-case dataset
             if uploads.exists():
-                shutil.rmtree(uploads, ignore_errors=True)
+                for p in uploads.iterdir():
+                    if p.name in keep:
+                        continue
+                    if p.is_dir():
+                        shutil.rmtree(p, ignore_errors=True)
+                    else:
+                        p.unlink(missing_ok=True)
         except Exception:
             pass
     threading.Thread(target=documentation.warm_up, daemon=True).start()
